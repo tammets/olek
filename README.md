@@ -22,7 +22,7 @@ It knows Estonian public holidays and the shortened days before them. It nudges 
 **Build it.** With Xcode Command Line Tools installed:
 
 ```sh
-git clone git@github.com:tammets/olek.git && cd olek
+git clone https://github.com/tammets/olek.git && cd olek
 scripts/install.sh
 ```
 
@@ -88,6 +88,10 @@ GitHub Actions then tests, builds, and publishes the release with the zip and it
 - Times use a 24-hour clock and dates are written day first.
 - The interface is in English. It is ready for translation, and Estonian is next.
 - Builds are not notarized, so each new download needs *Open Anyway* once.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ---
 
