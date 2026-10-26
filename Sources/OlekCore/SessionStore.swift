@@ -59,6 +59,10 @@ public final class SessionStore: @unchecked Sendable {
         }
     }
 
+    public func allSessions() throws -> [Session] {
+        try locked { try db.query("\(Self.select) ORDER BY start_at", [], Self.session) }
+    }
+
     /// The session that started most recently, open or closed.
     public func latestSession() throws -> Session? {
         try locked { try db.query("\(Self.select) ORDER BY start_at DESC LIMIT 1", [], Self.session).first }
@@ -205,6 +209,76 @@ public final class SessionStore: @unchecked Sendable {
                 )
                 guard let saved = try fetch(id: session.id) else { throw SessionError.notFound }
                 return saved
+            }
+        }
+    }
+
+    /// Adds a finished session, e.g. one that was forgotten.
+    @discardableResult
+    public func add(start: Date, end: Date, note: String? = nil, now: Date) throws -> Session {
+        try locked {
+            try db.transaction {
+                try validate(id: nil, start: start, end: end, now: now)
+                let stamp = now.unixSeconds
+                try db.run(
+                    """
+                    INSERT INTO session (start_at, end_at, heartbeat_at, note, created_at, updated_at)
+                    VALUES (?, ?, NULL, ?, ?, ?)
+                    """,
+                    [.int(start.unixSeconds), .int(end.unixSeconds), note.map { .text($0) } ?? .null, .int(stamp), .int(stamp)]
+                )
+                guard let saved = try fetch(id: db.lastInsertRowID) else { throw SessionError.notFound }
+                return saved
+            }
+        }
+    }
+
+    public func delete(id: Int64) throws {
+        try locked {
+            try db.transaction {
+                guard try fetch(id: id) != nil else { throw SessionError.notFound }
+                try db.run("DELETE FROM session WHERE id = ?", [.int(id)])
+            }
+        }
+    }
+
+    /// Cuts the span `from..<to` out of a session, leaving two sessions with a gap between them.
+    /// Works on a running session too; the second part keeps running.
+    @discardableResult
+    public func insertBreak(sessionID: Int64, from: Date, to: Date, now: Date) throws -> (before: Session, after: Session) {
+        try locked {
+            try db.transaction {
+                guard let session = try fetch(id: sessionID) else { throw SessionError.notFound }
+                let breakStart = from.unixSeconds
+                let breakEnd = to.unixSeconds
+                let sessionEnd = session.end?.unixSeconds ?? now.unixSeconds
+                guard breakStart > session.start.unixSeconds, breakEnd < sessionEnd, breakEnd > breakStart else {
+                    throw SessionError.breakOutsideSession
+                }
+                let stamp = now.unixSeconds
+                // Close the first part before inserting the second, so at most one session is ever open.
+                try db.run(
+                    "UPDATE session SET end_at = ?, updated_at = ? WHERE id = ?",
+                    [.int(breakStart), .int(stamp), .int(session.id)]
+                )
+                try db.run(
+                    """
+                    INSERT INTO session (start_at, end_at, heartbeat_at, note, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        .int(breakEnd),
+                        session.end.map { .int($0.unixSeconds) } ?? .null,
+                        session.isOpen ? .int(stamp) : .null,
+                        session.note.map { .text($0) } ?? .null,
+                        .int(stamp),
+                        .int(stamp),
+                    ]
+                )
+                guard let before = try fetch(id: session.id), let after = try fetch(id: db.lastInsertRowID) else {
+                    throw SessionError.notFound
+                }
+                return (before, after)
             }
         }
     }

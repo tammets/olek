@@ -20,15 +20,42 @@ public struct PeriodSummary: Equatable, Sendable {
 /// Worked and expected time per date, the single source for every period figure.
 public struct Ledger: Sendable {
     public let workingCalendar: WorkingCalendar
-    public let workedByDay: [LocalDate: TimeInterval]
+    public let calendar: Calendar
+    public private(set) var workedByDay: [LocalDate: TimeInterval]
+    // Closed sessions never change with time, so they are split into days once.
+    // Only open sessions are recomputed when the clock moves.
+    private let closedByDay: [LocalDate: TimeInterval]
+    private let openSessions: [Session]
 
     public init(sessions: [Session], workingCalendar: WorkingCalendar, calendar: Calendar, now: Date) {
         self.workingCalendar = workingCalendar
-        self.workedByDay = WorkedTime.byDay(sessions, calendar: calendar, now: now)
+        self.calendar = calendar
+        openSessions = sessions.filter(\.isOpen)
+        closedByDay = WorkedTime.byDay(sessions.filter { !$0.isOpen }, calendar: calendar, now: now)
+        workedByDay = [:]
+        refreshOpenSessions(now: now)
+    }
+
+    /// The same ledger with open sessions extended to `now`.
+    public func updated(now: Date) -> Ledger {
+        var copy = self
+        copy.refreshOpenSessions(now: now)
+        return copy
+    }
+
+    private mutating func refreshOpenSessions(now: Date) {
+        workedByDay = closedByDay.merging(
+            WorkedTime.byDay(openSessions, calendar: calendar, now: now),
+            uniquingKeysWith: +
+        )
     }
 
     public func worked(on date: LocalDate) -> TimeInterval {
         workedByDay[date] ?? 0
+    }
+
+    public func plan(for date: LocalDate) -> DayPlan {
+        workingCalendar.plan(for: date)
     }
 
     /// Sums accounted days from `first` through `last`. Days before the accounting start are skipped
@@ -40,6 +67,30 @@ public struct Ledger: Sendable {
             total.expected += workingCalendar.plan(for: date).expected
         }
     }
+
+    public func status(on date: LocalDate, today: LocalDate) -> DayStatus {
+        let plan = workingCalendar.plan(for: date)
+        let worked = worked(on: date)
+        if plan.reason == .beforeAccounting { return .beforeAccounting }
+        if date > today { return .future }
+        if plan.expectedMinutes == 0 { return worked > 0 ? .met : .nonWorking }
+        if worked >= plan.expected { return .met }
+        if date == today { return .inProgress }
+        return worked > 0 ? .below : .noRecord
+    }
+}
+
+public enum DayStatus: Equatable, Sendable {
+    case beforeAccounting
+    case future
+    /// Nothing expected and nothing worked: weekend, holiday, vacation.
+    case nonWorking
+    /// Work expected, none recorded, day is over.
+    case noRecord
+    case below
+    case met
+    /// Today, target not reached yet.
+    case inProgress
 }
 
 public struct PeriodProgress: Equatable, Sendable {
@@ -50,13 +101,15 @@ public struct PeriodProgress: Equatable, Sendable {
     /// Everything worked so far, including today, against the whole period's expected time.
     public var whole: PeriodSummary
 
-    init(first: LocalDate, last: LocalDate, today: LocalDate, ledger: Ledger) {
+    /// Works for past, current, and future periods: "to date" never reaches past the period's end.
+    public init(first: LocalDate, last: LocalDate, today: LocalDate, ledger: Ledger) {
         self.first = first
         self.last = last
-        let yesterday = today.adding(days: -1)
-        toDate = yesterday >= first ? ledger.summary(from: first, through: yesterday) : .zero
+        let toDateEnd = min(today.adding(days: -1), last)
+        toDate = toDateEnd >= first ? ledger.summary(from: first, through: toDateEnd) : .zero
+        let workedEnd = min(today, last)
         whole = PeriodSummary(
-            worked: ledger.summary(from: first, through: today).worked,
+            worked: workedEnd >= first ? ledger.summary(from: first, through: workedEnd).worked : 0,
             expected: ledger.summary(from: first, through: last).expected
         )
     }

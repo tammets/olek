@@ -49,6 +49,12 @@ public struct LocalDate: Hashable, Comparable, Sendable, CustomStringConvertible
         Weekday(rawValue: julianDay % 7 + 1)!
     }
 
+    /// ISO 8601 week number. Week 1 is the week containing the year's first Thursday.
+    public var isoWeek: Int {
+        let thursday = adding(days: Weekday.thursday.rawValue - weekday.rawValue)
+        return LocalDate(year: thursday.year, month: 1, day: 1).days(until: thursday) / 7 + 1
+    }
+
     public var startOfWeek: LocalDate { adding(days: -(weekday.rawValue - 1)) }
     public var startOfMonth: LocalDate { LocalDate(year: year, month: month, day: 1) }
     public var endOfMonth: LocalDate {

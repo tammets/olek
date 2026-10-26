@@ -55,6 +55,35 @@ public enum TimeFormat {
 }
 
 public enum DateFormat {
+    static let weekdayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    static let monthNames = ["January", "February", "March", "April", "May", "June",
+                             "July", "August", "September", "October", "November", "December"]
+
+    /// "Monday 26 October 2026"
+    public static func long(_ date: LocalDate) -> String {
+        "\(weekdayNames[date.weekday.rawValue - 1]) \(date.day) \(monthNames[date.month - 1]) \(date.year)"
+    }
+
+    /// "October 2026"
+    public static func monthYear(_ date: LocalDate) -> String {
+        "\(monthNames[date.month - 1]) \(date.year)"
+    }
+
+    /// "October"
+    public static func month(_ date: LocalDate) -> String {
+        monthNames[date.month - 1]
+    }
+
+    /// "26 Oct – 1 Nov 2026", or "5 – 11 Oct 2026" within one month.
+    public static func range(_ first: LocalDate, _ last: LocalDate) -> String {
+        let short = { (d: LocalDate) in String(monthNames[d.month - 1].prefix(3)) }
+        if first.month == last.month && first.year == last.year {
+            return "\(first.day) \u{2013} \(last.day) \(short(last)) \(last.year)"
+        }
+        let firstYear = first.year == last.year ? "" : " \(first.year)"
+        return "\(first.day) \(short(first))\(firstYear) \u{2013} \(last.day) \(short(last)) \(last.year)"
+    }
+
     /// "Mon 26.10", European order regardless of locale.
     public static func weekdayDayMonth(_ date: LocalDate) -> String {
         let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]

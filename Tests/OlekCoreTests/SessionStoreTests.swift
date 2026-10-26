@@ -233,3 +233,94 @@ import Testing
         #expect(try store.latestSession()?.id == second.id)
     }
 }
+
+@Suite struct HistoryEditingTests {
+    let store: SessionStore
+
+    init() throws {
+        store = try .inMemory(now: at("2026-10-20T08:00:00+03:00"))
+    }
+
+    @Test func addForgottenSession() throws {
+        let added = try store.add(
+            start: at("2026-10-23T09:00:00+03:00"),
+            end: at("2026-10-23T17:00:00+03:00"),
+            note: "Forgot to start",
+            now: at("2026-10-26T10:00:00+02:00")
+        )
+        #expect(added.note == "Forgot to start")
+        #expect(try store.allSessions() == [added])
+    }
+
+    @Test func addRejectsOverlapAndFuture() throws {
+        let now = at("2026-10-26T10:00:00+02:00")
+        try store.add(start: at("2026-10-23T09:00:00+03:00"), end: at("2026-10-23T17:00:00+03:00"), now: now)
+        #expect(throws: SessionError.overlaps(with: 1)) {
+            try store.add(start: at("2026-10-23T16:00:00+03:00"), end: at("2026-10-23T18:00:00+03:00"), now: now)
+        }
+        #expect(throws: SessionError.inFuture) {
+            try store.add(start: at("2026-10-26T09:00:00+02:00"), end: at("2026-10-26T11:00:00+02:00"), now: now)
+        }
+    }
+
+    @Test func deleteRemovesOnlyThatSession() throws {
+        let now = at("2026-10-26T10:00:00+02:00")
+        let first = try store.add(start: at("2026-10-23T09:00:00+03:00"), end: at("2026-10-23T12:00:00+03:00"), now: now)
+        let second = try store.add(start: at("2026-10-23T13:00:00+03:00"), end: at("2026-10-23T17:00:00+03:00"), now: now)
+        try store.delete(id: first.id)
+        #expect(try store.allSessions() == [second])
+        #expect(throws: SessionError.notFound) { try store.delete(id: first.id) }
+    }
+
+    @Test func breakSplitsAClosedSession() throws {
+        let now = at("2026-10-26T10:00:00+02:00")
+        let session = try store.add(start: at("2026-10-23T09:00:00+03:00"), end: at("2026-10-23T17:00:00+03:00"), note: "Client", now: now)
+        let (before, after) = try store.insertBreak(
+            sessionID: session.id,
+            from: at("2026-10-23T12:00:00+03:00"),
+            to: at("2026-10-23T12:45:00+03:00"),
+            now: now
+        )
+        #expect(before.end == at("2026-10-23T12:00:00+03:00"))
+        #expect(after.start == at("2026-10-23T12:45:00+03:00"))
+        #expect(after.end == at("2026-10-23T17:00:00+03:00"))
+        #expect(after.note == "Client")
+    }
+
+    @Test func breakInRunningSessionKeepsSecondPartRunning() throws {
+        try store.start(at: at("2026-10-26T08:00:00+02:00"), now: at("2026-10-26T08:00:00+02:00"))
+        let open = try #require(try store.openSession())
+        let (before, after) = try store.insertBreak(
+            sessionID: open.id,
+            from: at("2026-10-26T12:00:00+02:00"),
+            to: at("2026-10-26T12:30:00+02:00"),
+            now: at("2026-10-26T15:00:00+02:00")
+        )
+        #expect(before.end == at("2026-10-26T12:00:00+02:00"))
+        #expect(after.isOpen)
+        #expect(try store.openSession()?.id == after.id)
+    }
+
+    @Test func breakMustFitInsideTheSession() throws {
+        let now = at("2026-10-26T10:00:00+02:00")
+        let session = try store.add(start: at("2026-10-23T09:00:00+03:00"), end: at("2026-10-23T17:00:00+03:00"), now: now)
+        #expect(throws: SessionError.breakOutsideSession) {
+            try store.insertBreak(sessionID: session.id, from: at("2026-10-23T08:00:00+03:00"), to: at("2026-10-23T10:00:00+03:00"), now: now)
+        }
+        #expect(throws: SessionError.breakOutsideSession) {
+            try store.insertBreak(sessionID: session.id, from: at("2026-10-23T12:00:00+03:00"), to: at("2026-10-23T11:00:00+03:00"), now: now)
+        }
+        #expect(throws: SessionError.breakOutsideSession) {
+            try store.insertBreak(sessionID: session.id, from: at("2026-10-23T16:00:00+03:00"), to: at("2026-10-23T17:00:00+03:00"), now: now)
+        }
+    }
+
+    @Test func stopRunningSessionAtAChosenPastTime() throws {
+        try store.start(at: at("2026-10-26T08:00:00+02:00"), now: at("2026-10-26T08:00:00+02:00"))
+        var session = try #require(try store.openSession())
+        session.end = at("2026-10-26T16:30:00+02:00")
+        let saved = try store.update(session, now: at("2026-10-26T19:00:00+02:00"))
+        #expect(saved.end == at("2026-10-26T16:30:00+02:00"))
+        #expect(try store.openSession() == nil)
+    }
+}

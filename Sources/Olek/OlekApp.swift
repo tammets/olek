@@ -11,6 +11,12 @@ struct OlekApp: App {
             MenuBarLabel(model: appDelegate.controller)
         }
         .menuBarExtraStyle(.window)
+
+        Window("History", id: "history") {
+            HistoryView(model: appDelegate.controller)
+        }
+        .defaultSize(width: 920, height: 640)
+        .windowResizability(.contentMinSize)
     }
 }
 

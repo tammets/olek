@@ -3,6 +3,7 @@ import OlekCore
 
 struct PopoverView: View {
     let model: TrackingController
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -47,6 +48,11 @@ struct PopoverView: View {
             Divider()
 
             HStack {
+                Button("History") {
+                    openWindow(id: "history")
+                    NSApp.activate()
+                }
+                .keyboardShortcut("y")
                 Spacer()
                 Button("Quit Olek") { NSApplication.shared.terminate(nil) }
                     .keyboardShortcut("q")
@@ -120,6 +126,7 @@ private struct AdjustRow: View {
                 .controlSize(.small)
                 .monospacedDigit()
                 .help(helpText(minutes))
+                .accessibilityLabel(helpText(minutes))
             }
         }
     }

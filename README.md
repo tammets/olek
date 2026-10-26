@@ -8,7 +8,7 @@ No accounts, no cloud, no telemetry. All data stays on your Mac.
 
 ## Status
 
-Milestones 1 (foundation) and 2 (accounting) are done.
+Milestones 1 to 3 (foundation, accounting, history) are done.
 
 | Area | State |
 |---|---|
@@ -18,7 +18,7 @@ Milestones 1 (foundation) and 2 (accounting) are done.
 | Recovery after sleep, crash, or quit | Done |
 | Expected hours, Estonian holidays, balance | Done |
 | Quick start/stop time corrections | Done |
-| History window and editing | Milestone 3 |
+| History window and editing | Done |
 | Idle and activity reminders | Milestone 4 |
 | Settings, export, backup | Milestone 5 |
 
@@ -84,6 +84,14 @@ While tracking, Olek records a heartbeat every minute and when the Mac goes to s
 | 4 hours or more | The session is stopped at the moment Olek went away. An undo button reopens it if you were in fact working. |
 
 Olek never invents working time it could not observe.
+
+## History
+
+Open History from the menu bar popover (Cmd-Y). While it is open, Olek shows a Dock icon and a regular menu bar.
+
+- **Calendar.** Each day is coloured by status: target met, below target, no record, day off or holiday, and today. Days with an override show a dot, holidays a star. Arrow keys move the selection, Cmd-Left and Cmd-Right change month, Cmd-T jumps to today.
+- **Day view.** Worked, expected, completion, and difference for the day. Change the day type (vacation, day off, sick leave, non-working, working day, adjusted hours) with an optional note. Add (Cmd-N), edit, delete, or insert a break into sessions. Edits that would overlap another session, end before they start, or reach into the future are refused with an explanation.
+- **Week, month, and year views.** Totals plus one row per day or month. Double-click a row to open it.
 
 ## Expected hours and balance
 

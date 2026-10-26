@@ -19,6 +19,9 @@ final class TrackingController {
     private(set) var openSession: Session?
     private(set) var latestSession: Session?
     private(set) var overview: Overview?
+    private(set) var ledger: Ledger?
+    /// Every session ever recorded, oldest first.
+    private(set) var allSessions: [Session] = []
     private(set) var now = Date()
     private(set) var notice: RecoveryNotice?
     private(set) var errorMessage: String?
@@ -32,7 +35,6 @@ final class TrackingController {
     @ObservationIgnored private let policy = RecoveryPolicy()
     @ObservationIgnored private let calendar = Calendar.autoupdatingCurrent
     @ObservationIgnored private var today: LocalDate
-    @ObservationIgnored private var sessions: [Session] = []
     @ObservationIgnored private var workingCalendar: WorkingCalendar?
     @ObservationIgnored private var openingBalance: TimeInterval = 0
     @ObservationIgnored private var timer: Timer?
@@ -92,6 +94,45 @@ final class TrackingController {
         perform { try $0.update(session, now: Date()) }
     }
 
+    // MARK: History editing
+
+    /// Throwing variants report validation errors back to the sheet that asked.
+    func addSession(start: Date, end: Date, note: String?) throws {
+        try mutate { try $0.add(start: start, end: end, note: note, now: Date()) }
+    }
+
+    func saveSession(_ session: Session) throws {
+        try mutate { try $0.update(session, now: Date()) }
+    }
+
+    func insertBreak(in session: Session, from: Date, to: Date) throws {
+        try mutate { try $0.insertBreak(sessionID: session.id, from: from, to: to, now: Date()) }
+    }
+
+    func deleteSession(_ session: Session) {
+        perform { try $0.delete(id: session.id) }
+    }
+
+    func setDayOverride(_ override: DayOverride) {
+        perform { try $0.setDayOverride(override, now: Date()) }
+    }
+
+    func removeDayOverride(on date: LocalDate) {
+        perform { try $0.removeDayOverride(on: date) }
+    }
+
+    func dayOverride(on date: LocalDate) -> DayOverride? {
+        workingCalendar?.overrides[date]
+    }
+
+    /// Sessions that touch `date`, including ones crossing midnight into or out of it.
+    func sessions(on date: LocalDate) -> [Session] {
+        let day = date.interval(in: calendar)
+        return allSessions.filter { session in
+            session.start < day.end && (session.end ?? max(now, session.start)) > day.start
+        }
+    }
+
     func keepGap() {
         notice = nil
     }
@@ -147,6 +188,13 @@ final class TrackingController {
         reload()
     }
 
+    private func mutate(_ action: (SessionStore) throws -> Void) throws {
+        guard let store else { throw SessionError.notFound }
+        defer { reload() }
+        try action(store)
+        errorMessage = nil
+    }
+
     private func show(_ error: Error) {
         errorMessage = error.localizedDescription
         errorClearTask?.cancel()
@@ -174,22 +222,19 @@ final class TrackingController {
                 accountingStart: accountingStart
             )
             openingBalance = TimeInterval(settings.openingBalanceMinutes * 60)
-            // Only accounted days and the current year feed the overview.
-            let earliest = min(accountingStart, today.startOfYear)
-            sessions = try store.sessions(overlapping: DateInterval(
-                start: earliest.interval(in: calendar).start,
-                end: .distantFuture
-            ))
+            allSessions = try store.allSessions()
         } catch {
             show(error)
+        }
+        if let workingCalendar {
+            ledger = Ledger(sessions: allSessions, workingCalendar: workingCalendar, calendar: calendar, now: now)
         }
         recomputeOverview()
         updateActivityAssertion()
     }
 
     private func recomputeOverview() {
-        guard let workingCalendar else { return }
-        let ledger = Ledger(sessions: sessions, workingCalendar: workingCalendar, calendar: calendar, now: now)
+        guard let ledger else { return }
         overview = Overview(ledger: ledger, openingBalance: openingBalance, today: today)
     }
 
@@ -198,6 +243,7 @@ final class TrackingController {
         if LocalDate(now, calendar: calendar) != today {
             reload()
         } else {
+            ledger = ledger?.updated(now: now)
             recomputeOverview()
         }
         checkLiveness()

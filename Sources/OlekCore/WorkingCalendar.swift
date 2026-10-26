@@ -114,12 +114,13 @@ public struct WorkingCalendar: Sendable {
             return DayPlan(date: date, expectedMinutes: 0, reason: .beforeAccounting)
         }
         if let override = overrides[date] {
-            let minutes = switch override.kind {
-            case .vacation, .dayOff, .sick, .customNonWorking: 0
-            case .customWorking, .minutes: max(0, override.expectedMinutes ?? 0)
-            }
-            return DayPlan(date: date, expectedMinutes: minutes, reason: .override(override.kind))
+            return plan(for: override)
         }
+        return basePlan(for: date)
+    }
+
+    /// What the date would expect without any personal override or accounting start.
+    public func basePlan(for date: LocalDate) -> DayPlan {
         if settings.estonianHolidays, let holiday = EstonianHoliday.holiday(on: date) {
             return DayPlan(date: date, expectedMinutes: 0, reason: .holiday(holiday))
         }
@@ -130,5 +131,13 @@ public struct WorkingCalendar: Sendable {
             return DayPlan(date: date, expectedMinutes: minutes, reason: .shortened(before: holiday))
         }
         return DayPlan(date: date, expectedMinutes: scheduled, reason: .schedule)
+    }
+
+    private func plan(for override: DayOverride) -> DayPlan {
+        let minutes = switch override.kind {
+        case .vacation, .dayOff, .sick, .customNonWorking: 0
+        case .customWorking, .minutes: max(0, override.expectedMinutes ?? 0)
+        }
+        return DayPlan(date: override.date, expectedMinutes: minutes, reason: .override(override.kind))
     }
 }
