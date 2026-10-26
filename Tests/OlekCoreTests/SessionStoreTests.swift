@@ -189,3 +189,47 @@ import Testing
         #expect(throws: DatabaseError.self) { try SessionStore(url: url) }
     }
 }
+
+@Suite struct SettingsStoreTests {
+    let store: SessionStore
+
+    init() throws {
+        store = try .inMemory(now: at("2026-10-26T08:00:00+02:00"))
+    }
+
+    @Test func defaultsWhenNothingSaved() throws {
+        #expect(try store.workSettings() == WorkSettings())
+    }
+
+    @Test func settingsRoundTrip() throws {
+        var settings = WorkSettings()
+        settings.accountingStart = day("2026-01-01")
+        settings.openingBalanceMinutes = -150
+        settings.minutesByWeekday = [450, 450, 450, 450, 360, 0, 0]
+        try store.saveWorkSettings(settings)
+        #expect(try store.workSettings() == settings)
+    }
+
+    @Test func overridesUpsertAndRemove() throws {
+        let now = at("2026-10-26T08:00:00+02:00")
+        try store.setDayOverride(DayOverride(date: day("2026-10-27"), kind: .vacation), now: now)
+        try store.setDayOverride(DayOverride(date: day("2026-10-27"), kind: .minutes, expectedMinutes: 240, note: "Dentist"), now: now)
+        #expect(try store.dayOverrides() == [DayOverride(date: day("2026-10-27"), kind: .minutes, expectedMinutes: 240, note: "Dentist")])
+
+        try store.removeDayOverride(on: day("2026-10-27"))
+        #expect(try store.dayOverrides().isEmpty)
+    }
+
+    @Test func overrideMinutesAreValidated() {
+        #expect(throws: SessionError.invalidExpectedMinutes) {
+            try store.setDayOverride(DayOverride(date: day("2026-10-27"), kind: .customWorking), now: at("2026-10-26T08:00:00+02:00"))
+        }
+    }
+
+    @Test func latestSessionIsTheMostRecentStart() throws {
+        try store.start(at: at("2026-10-26T09:00:00+02:00"), now: at("2026-10-26T09:00:00+02:00"))
+        try store.stop(at: at("2026-10-26T10:00:00+02:00"), now: at("2026-10-26T10:00:00+02:00"))
+        let second = try store.start(at: at("2026-10-26T11:00:00+02:00"), now: at("2026-10-26T11:00:00+02:00"))
+        #expect(try store.latestSession()?.id == second.id)
+    }
+}

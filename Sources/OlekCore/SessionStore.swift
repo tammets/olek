@@ -59,6 +59,65 @@ public final class SessionStore: @unchecked Sendable {
         }
     }
 
+    /// The session that started most recently, open or closed.
+    public func latestSession() throws -> Session? {
+        try locked { try db.query("\(Self.select) ORDER BY start_at DESC LIMIT 1", [], Self.session).first }
+    }
+
+    // MARK: Settings
+
+    public func workSettings() throws -> WorkSettings {
+        try setting("work", as: WorkSettings.self) ?? WorkSettings()
+    }
+
+    public func saveWorkSettings(_ settings: WorkSettings) throws {
+        try saveSetting("work", settings)
+    }
+
+    // MARK: Day overrides
+
+    public func dayOverrides() throws -> [DayOverride] {
+        try locked {
+            try db.query("SELECT date, kind, expected_minutes, note FROM day_override ORDER BY date") { row in
+                guard let date = row.text(0).flatMap(LocalDate.init),
+                      let kind = row.text(1).flatMap(DayOverride.Kind.init(rawValue:)) else { return nil }
+                return DayOverride(date: date, kind: kind, expectedMinutes: row.optionalInt(2).map(Int.init), note: row.text(3))
+            }.compactMap { $0 }
+        }
+    }
+
+    public func setDayOverride(_ override: DayOverride, now: Date) throws {
+        if override.kind == .customWorking || override.kind == .minutes {
+            guard let minutes = override.expectedMinutes, (0...(24 * 60)).contains(minutes) else {
+                throw SessionError.invalidExpectedMinutes
+            }
+        }
+        try locked {
+            let stamp = now.unixSeconds
+            try db.run(
+                """
+                INSERT INTO day_override (date, kind, expected_minutes, note, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date) DO UPDATE SET
+                    kind = excluded.kind, expected_minutes = excluded.expected_minutes,
+                    note = excluded.note, updated_at = excluded.updated_at
+                """,
+                [
+                    .text(override.date.description),
+                    .text(override.kind.rawValue),
+                    override.expectedMinutes.map { .int(Int64($0)) } ?? .null,
+                    override.note.map { .text($0) } ?? .null,
+                    .int(stamp),
+                    .int(stamp),
+                ]
+            )
+        }
+    }
+
+    public func removeDayOverride(on date: LocalDate) throws {
+        try locked { try db.run("DELETE FROM day_override WHERE date = ?", [.text(date.description)]) }
+    }
+
     // MARK: Tracking
 
     @discardableResult
@@ -159,6 +218,26 @@ public final class SessionStore: @unchecked Sendable {
     }
 
     // MARK: Private
+
+    private func setting<T: Decodable>(_ key: String, as type: T.Type) throws -> T? {
+        let value = try locked {
+            try db.query("SELECT value FROM setting WHERE key = ?", [.text(key)]) { $0.text(0) }.first ?? nil
+        }
+        guard let value else { return nil }
+        return try JSONDecoder().decode(T.self, from: Data(value.utf8))
+    }
+
+    private func saveSetting<T: Encodable>(_ key: String, _ value: T) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let json = String(decoding: try encoder.encode(value), as: UTF8.self)
+        try locked {
+            try db.run(
+                "INSERT INTO setting (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                [.text(key), .text(json)]
+            )
+        }
+    }
 
     private func locked<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()

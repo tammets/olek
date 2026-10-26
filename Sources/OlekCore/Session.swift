@@ -30,6 +30,7 @@ public enum SessionError: Error, Equatable, LocalizedError {
     case endNotAfterStart
     case inFuture
     case overlaps(with: Int64)
+    case invalidExpectedMinutes
 
     public var errorDescription: String? {
         switch self {
@@ -39,6 +40,7 @@ public enum SessionError: Error, Equatable, LocalizedError {
         case .endNotAfterStart: String(localized: "The end time must be after the start time.")
         case .inFuture: String(localized: "Times cannot be in the future.")
         case .overlaps: String(localized: "This would overlap another session.")
+        case .invalidExpectedMinutes: String(localized: "Expected hours must be between 0 and 24.")
         }
     }
 }

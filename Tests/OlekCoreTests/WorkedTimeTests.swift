@@ -72,7 +72,21 @@ import OlekCore
         #expect(DurationFormat.hoursMinutes(59) == "0m")
         #expect(DurationFormat.hoursMinutes(45 * 60) == "45m")
         #expect(DurationFormat.hoursMinutes(6.5 * 3600) == "6h 30m")
+        #expect(DurationFormat.hoursMinutes(8 * 3600) == "8h")
         #expect(DurationFormat.hoursMinutes(-1.5 * 3600) == "\u{2212}1h 30m")
+        #expect(DurationFormat.hoursMinutes(-30) == "0m")
+    }
+
+    @Test func signedDurations() {
+        #expect(DurationFormat.signed(2.25 * 3600) == "+2h 15m")
+        #expect(DurationFormat.signed(-1.5 * 3600) == "\u{2212}1h 30m")
+        #expect(DurationFormat.signed(20) == "0m")
+    }
+
+    @Test func percentRoundsDown() {
+        #expect(PercentFormat.whole(0.8125) == "81%")
+        #expect(PercentFormat.whole(0.9999) == "99%")
+        #expect(PercentFormat.whole(1.05) == "105%")
     }
 
     @Test func clock() {

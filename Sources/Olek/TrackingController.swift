@@ -9,30 +9,42 @@ enum RecoveryNotice: Equatable {
     case autoStopped(session: Session, stoppedAt: Date, awayUntil: Date)
 }
 
+enum SessionEdge {
+    case start, end
+}
+
 @MainActor
 @Observable
 final class TrackingController {
     private(set) var openSession: Session?
+    private(set) var latestSession: Session?
+    private(set) var overview: Overview?
     private(set) var now = Date()
     private(set) var notice: RecoveryNotice?
     private(set) var errorMessage: String?
 
     var isWorking: Bool { openSession != nil }
 
+    /// The session the quick-adjust buttons act on: the running one, else the most recent.
+    var adjustableSession: Session? { openSession ?? latestSession }
+
     @ObservationIgnored private let store: SessionStore?
     @ObservationIgnored private let policy = RecoveryPolicy()
     @ObservationIgnored private let calendar = Calendar.autoupdatingCurrent
-    @ObservationIgnored private var today: DateInterval
+    @ObservationIgnored private var today: LocalDate
+    @ObservationIgnored private var sessions: [Session] = []
+    @ObservationIgnored private var workingCalendar: WorkingCalendar?
+    @ObservationIgnored private var openingBalance: TimeInterval = 0
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var activity: NSObjectProtocol?
-    private var todaySessions: [Session] = []
+    @ObservationIgnored private var errorClearTask: Task<Void, Never>?
 
     private static let tickInterval: TimeInterval = 10
     private static let heartbeatInterval: TimeInterval = 60
 
     init() {
-        today = Calendar.autoupdatingCurrent.dateInterval(of: .day, for: Date())!
+        today = LocalDate(Date(), calendar: .autoupdatingCurrent)
         do {
             store = try SessionStore(url: AppPaths.databaseURL)
         } catch {
@@ -43,12 +55,6 @@ final class TrackingController {
         checkLiveness()
         startTimer()
         observeSystem()
-    }
-
-    // MARK: Derived values
-
-    func todayWorked(at date: Date) -> TimeInterval {
-        WorkedTime.seconds(of: todaySessions, in: today, now: date)
     }
 
     func sessionDuration(at date: Date) -> TimeInterval? {
@@ -72,6 +78,20 @@ final class TrackingController {
         perform { try $0.stop(at: Date(), now: Date()) }
     }
 
+    /// Moves one edge of the adjustable session. Negative minutes move it earlier.
+    func adjust(_ edge: SessionEdge, minutes: Int) {
+        guard var session = adjustableSession else { return }
+        let delta = TimeInterval(minutes * 60)
+        switch edge {
+        case .start:
+            session.start += delta
+        case .end:
+            guard let end = session.end else { return }
+            session.end = end + delta
+        }
+        perform { try $0.update(session, now: Date()) }
+    }
+
     func keepGap() {
         notice = nil
     }
@@ -82,11 +102,9 @@ final class TrackingController {
             guard var session = try store.session(id: sessionID) else { throw SessionError.notFound }
             if session.isOpen {
                 try store.stop(at: from, now: Date())
-            } else if let end = session.end, end > from {
+            } else if let end = session.end, end > from, from > session.start {
                 session.end = from
-                if from > session.start {
-                    try store.update(session, now: Date())
-                }
+                try store.update(session, now: Date())
             }
             notice = nil
         }
@@ -124,28 +142,63 @@ final class TrackingController {
             try action(store)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
         reload()
     }
 
+    private func show(_ error: Error) {
+        errorMessage = error.localizedDescription
+        errorClearTask?.cancel()
+        errorClearTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            self?.errorMessage = nil
+        }
+    }
+
+    /// Re-reads everything from the database. Called after every change and at midnight.
     private func reload() {
         now = Date()
-        today = calendar.dateInterval(of: .day, for: now)!
+        today = LocalDate(now, calendar: calendar)
         guard let store else { return }
         do {
             openSession = try store.openSession()
-            todaySessions = try store.sessions(overlapping: today)
+            latestSession = try store.latestSession()
+            let settings = try store.workSettings()
+            let firstLaunch = try store.firstLaunchDate() ?? now
+            let accountingStart = settings.accountingStart ?? LocalDate(firstLaunch, calendar: calendar)
+            workingCalendar = WorkingCalendar(
+                settings: settings,
+                overrides: try store.dayOverrides(),
+                accountingStart: accountingStart
+            )
+            openingBalance = TimeInterval(settings.openingBalanceMinutes * 60)
+            // Only accounted days and the current year feed the overview.
+            let earliest = min(accountingStart, today.startOfYear)
+            sessions = try store.sessions(overlapping: DateInterval(
+                start: earliest.interval(in: calendar).start,
+                end: .distantFuture
+            ))
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
+        recomputeOverview()
         updateActivityAssertion()
+    }
+
+    private func recomputeOverview() {
+        guard let workingCalendar else { return }
+        let ledger = Ledger(sessions: sessions, workingCalendar: workingCalendar, calendar: calendar, now: now)
+        overview = Overview(ledger: ledger, openingBalance: openingBalance, today: today)
     }
 
     private func tick() {
         now = Date()
-        if now < today.start || now >= today.end {
+        if LocalDate(now, calendar: calendar) != today {
             reload()
+        } else {
+            recomputeOverview()
         }
         checkLiveness()
     }
@@ -171,7 +224,7 @@ final class TrackingController {
                 try store.stop(at: stopAt, now: current)
                 notice = .autoStopped(session: session, stoppedAt: stopAt, awayUntil: current)
             } catch {
-                errorMessage = error.localizedDescription
+                show(error)
             }
             reload()
         }

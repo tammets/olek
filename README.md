@@ -8,7 +8,7 @@ No accounts, no cloud, no telemetry. All data stays on your Mac.
 
 ## Status
 
-Milestone 1 (foundation) is in progress.
+Milestones 1 (foundation) and 2 (accounting) are done.
 
 | Area | State |
 |---|---|
@@ -16,7 +16,8 @@ Milestone 1 (foundation) is in progress.
 | Persistent sessions (SQLite) | Done |
 | Live session timer and today's total | Done |
 | Recovery after sleep, crash, or quit | Done |
-| Expected hours, Estonian holidays, balance | Milestone 2 |
+| Expected hours, Estonian holidays, balance | Done |
+| Quick start/stop time corrections | Done |
 | History window and editing | Milestone 3 |
 | Idle and activity reminders | Milestone 4 |
 | Settings, export, backup | Milestone 5 |
@@ -83,6 +84,24 @@ While tracking, Olek records a heartbeat every minute and when the Mac goes to s
 | 4 hours or more | The session is stopped at the moment Olek went away. An undo button reopens it if you were in fact working. |
 
 Olek never invents working time it could not observe.
+
+## Expected hours and balance
+
+Expected time for each date follows these rules. The first rule that applies wins.
+
+1. Dates before the accounting start expect nothing.
+2. A personal day override: vacation, day off, sick leave, a custom non-working or working day, or adjusted hours.
+3. Estonian public holidays expect nothing.
+4. A shortened pre-holiday day expects the scheduled time minus three hours.
+5. The weekly schedule, by default eight hours Monday to Friday.
+
+**Estonian public holidays** are computed for any year: New Year's Day, Independence Day, Good Friday, Easter Sunday, Spring Day, Pentecost, Victory Day, Midsummer Day, Restoration of Independence Day, and Christmas Eve, Day, and Boxing Day.
+
+**Shortened days.** Employment Contracts Act § 53 shortens the working day before New Year's Day, Independence Day, Victory Day, and Christmas Eve by three hours. Olek applies this to the calendar day directly before the holiday when that day is a working day for you, including a weekend day you normally work. If that day is not a working day, nothing is shortened and the reduction does not move to an earlier day. Sources: [ERR News](https://news.err.ee/1609505593/most-of-estonia-s-public-holidays-to-fall-on-weekdays-in-2025), [Grant Thornton](https://www.grantthornton.ee/en/insights1/2019-working-on-public-holidays-must-be-paid-at-double-the-rate/), [NJORD Law](https://www.njordlaw.com/njord-estonia-summarised-working-time-and-public-holidays-what-consider-when-calculating-working).
+
+**Balance** is the opening balance plus worked minus expected time for every day from the accounting start through yesterday. Today is left out because it is still in progress; it appears separately as today's progress. Week and month show two figures. "Ahead" or "behind" compares against expected time through yesterday. The second line compares everything worked so far against the whole period.
+
+The accounting start defaults to the day Olek was first launched. A settings window for the schedule, accounting start, and opening balance arrives in Milestone 5.
 
 ## Project layout
 
