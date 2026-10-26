@@ -5,10 +5,13 @@ struct MenuBarLabel: View {
     let model: TrackingController
 
     var body: some View {
-        if let duration = model.sessionDuration(at: model.now) {
-            Text("\(Image(systemName: symbol)) \(DurationFormat.hoursMinutes(duration))")
-        } else {
+        // The menu bar drops images interpolated into Text, so icon and text stay separate views.
+        HStack(spacing: 4) {
             Image(systemName: symbol)
+            if let duration = model.sessionDuration(at: model.now) {
+                Text(DurationFormat.hoursMinutes(duration))
+                    .monospacedDigit()
+            }
         }
     }
 
