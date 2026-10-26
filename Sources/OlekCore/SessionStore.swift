@@ -78,6 +78,14 @@ public final class SessionStore: @unchecked Sendable {
         try saveSetting("work", settings)
     }
 
+    public func reminderSettings() throws -> ReminderSettings {
+        try setting("reminders", as: ReminderSettings.self) ?? ReminderSettings()
+    }
+
+    public func saveReminderSettings(_ settings: ReminderSettings) throws {
+        try saveSetting("reminders", settings)
+    }
+
     // MARK: Day overrides
 
     public func dayOverrides() throws -> [DayOverride] {

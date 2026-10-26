@@ -24,6 +24,9 @@ final class TrackingController {
     private(set) var allSessions: [Session] = []
     private(set) var now = Date()
     private(set) var notice: RecoveryNotice?
+    /// A reminder waiting for an answer, shown in the popover as well as a notification.
+    private(set) var reminder: Reminder?
+    private(set) var reminderSettings = ReminderSettings()
     private(set) var errorMessage: String?
 
     var isWorking: Bool { openSession != nil }
@@ -32,7 +35,9 @@ final class TrackingController {
     var adjustableSession: Session? { openSession ?? latestSession }
 
     @ObservationIgnored private let store: SessionStore?
-    @ObservationIgnored private let policy = RecoveryPolicy()
+    @ObservationIgnored private var policy = RecoveryPolicy()
+    @ObservationIgnored private var engine = ReminderEngine(settings: ReminderSettings())
+    @ObservationIgnored let notifications = NotificationService()
     @ObservationIgnored private let calendar = Calendar.autoupdatingCurrent
     @ObservationIgnored private var today: LocalDate
     @ObservationIgnored private var workingCalendar: WorkingCalendar?
@@ -53,10 +58,12 @@ final class TrackingController {
             store = nil
             errorMessage = String(describing: error)
         }
+        loadReminderSettings()
         reload()
         checkLiveness()
         startTimer()
         observeSystem()
+        notifications.onAction = { [weak self] action, text in self?.handle(action, typedText: text) }
     }
 
     func sessionDuration(at date: Date) -> TimeInterval? {
@@ -70,14 +77,99 @@ final class TrackingController {
     }
 
     func start() {
+        start(at: Date())
+    }
+
+    func start(at time: Date) {
         perform {
-            try $0.start(at: Date(), now: Date())
+            try $0.start(at: time, now: Date())
             if case .autoStopped = notice { notice = nil }
         }
+        if isWorking { trackingDidStart() }
     }
 
     func stop() {
-        perform { try $0.stop(at: Date(), now: Date()) }
+        stop(at: Date())
+    }
+
+    func stop(at time: Date) {
+        perform { try $0.stop(at: time, now: Date()) }
+        if !isWorking { trackingDidStop() }
+    }
+
+    // MARK: Reminders
+
+    func handle(_ action: NotificationService.Action, typedText: String? = nil) {
+        switch (action, reminder) {
+        case (.continueWorking, _):
+            clearReminder()
+        case (.stopNow, _):
+            clearReminder()
+            if isWorking { stop() }
+        case (.stopAtIdleStart, .idleWhileTracking(let since)?):
+            clearReminder()
+            if isWorking { stop(at: since) }
+        case (.remindLater, let pending?):
+            engine.snooze(pending.kind, now: Date())
+            clearReminder()
+        case (.startNow, _):
+            clearReminder()
+            if !isWorking { start() }
+        case (.startAtActiveStart, .activeWhileStopped(let since)?):
+            clearReminder()
+            if !isWorking { start(at: since) }
+        case (.startAtTypedTime, _):
+            guard let text = typedText, let time = TimeParse.time(text, sameDayAs: Date(), calendar: calendar) else {
+                show(message: String(localized: "Could not read \"\(typedText ?? "")\" as a time. Use a form like 9:15."))
+                return
+            }
+            clearReminder()
+            if !isWorking { start(at: time) }
+        case (.notWorking, _):
+            engine.dismissActive()
+            clearReminder()
+        default:
+            // The reminder was already answered elsewhere, e.g. in the popover.
+            break
+        }
+    }
+
+    func updateReminderSettings(_ settings: ReminderSettings) {
+        perform { try $0.saveReminderSettings(settings) }
+        loadReminderSettings()
+    }
+
+    private func loadReminderSettings() {
+        reminderSettings = (try? store?.reminderSettings()) ?? ReminderSettings()
+        engine.settings = reminderSettings
+        policy = reminderSettings.recoveryPolicy
+    }
+
+    private func trackingDidStart() {
+        if case .activeWhileStopped = reminder { clearReminder() }
+        notifications.requestAuthorizationIfNeeded()
+    }
+
+    private func trackingDidStop() {
+        engine.trackingStopped()
+        if case .idleWhileTracking = reminder { clearReminder() }
+    }
+
+    private func clearReminder() {
+        if let reminder { notifications.clear(reminder.kind) }
+        reminder = nil
+    }
+
+    private func sampleActivity() {
+        let workExpected = overview.map { $0.todayWorked < $0.todayPlan.expected } ?? false
+        guard let fired = engine.sample(
+            now: now,
+            idleSeconds: ActivityMonitor.secondsSinceLastInput(),
+            isTracking: isWorking,
+            workExpected: workExpected
+        ) else { return }
+        reminder = fired
+        notifications.show(fired)
     }
 
     /// Moves one edge of the adjustable session. Negative minutes move it earlier.
@@ -196,7 +288,11 @@ final class TrackingController {
     }
 
     private func show(_ error: Error) {
-        errorMessage = error.localizedDescription
+        show(message: error.localizedDescription)
+    }
+
+    private func show(message: String) {
+        errorMessage = message
         errorClearTask?.cancel()
         errorClearTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(6))
@@ -247,6 +343,7 @@ final class TrackingController {
             recomputeOverview()
         }
         checkLiveness()
+        sampleActivity()
     }
 
     private func checkLiveness() {

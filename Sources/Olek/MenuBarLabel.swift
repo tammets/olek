@@ -16,7 +16,7 @@ struct MenuBarLabel: View {
     }
 
     private var symbol: String {
-        if model.notice != nil { return "clock.badge.exclamationmark" }
+        if model.notice != nil || model.reminder != nil { return "clock.badge.exclamationmark" }
         return model.isWorking ? "stopwatch.fill" : "stopwatch"
     }
 }

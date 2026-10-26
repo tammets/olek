@@ -17,6 +17,10 @@ struct OlekApp: App {
         }
         .defaultSize(width: 920, height: 640)
         .windowResizability(.contentMinSize)
+
+        Settings {
+            SettingsView(model: appDelegate.controller)
+        }
     }
 }
 

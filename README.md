@@ -8,7 +8,7 @@ No accounts, no cloud, no telemetry. All data stays on your Mac.
 
 ## Status
 
-Milestones 1 to 3 (foundation, accounting, history) are done.
+Milestones 1 to 4 (foundation, accounting, history, reminders) are done.
 
 | Area | State |
 |---|---|
@@ -19,7 +19,7 @@ Milestones 1 to 3 (foundation, accounting, history) are done.
 | Expected hours, Estonian holidays, balance | Done |
 | Quick start/stop time corrections | Done |
 | History window and editing | Done |
-| Idle and activity reminders | Milestone 4 |
+| Idle and activity reminders | Done |
 | Settings, export, backup | Milestone 5 |
 
 ## Requirements
@@ -92,6 +92,15 @@ Open History from the menu bar popover (Cmd-Y). While it is open, Olek shows a D
 - **Calendar.** Each day is coloured by status: target met, below target, no record, day off or holiday, and today. Days with an override show a dot, holidays a star. Arrow keys move the selection, Cmd-Left and Cmd-Right change month, Cmd-T jumps to today.
 - **Day view.** Worked, expected, completion, and difference for the day. Change the day type (vacation, day off, sick leave, non-working, working day, adjusted hours) with an optional note. Add (Cmd-N), edit, delete, or insert a break into sessions. Edits that would overlap another session, end before they start, or reach into the future are refused with an explanation.
 - **Week, month, and year views.** Totals plus one row per day or month. Double-click a row to open it.
+
+## Reminders
+
+Olek reads only how many seconds have passed since the last keyboard, mouse, or trackpad input. It needs no special permission and never sees what you type, which apps you use, or what is on screen.
+
+- **Still working?** When tracking runs and the Mac has had no input for 15 minutes, Olek asks. You can continue, stop now, stop at the moment you went idle, or be reminded later. Idleness alone never stops tracking, since meetings and reading are work too.
+- **Start tracking?** When the Mac has been in continuous use for 10 minutes while tracking is stopped, Olek suggests starting, from the moment the activity began or a time you type. This only happens on scheduled workdays until the day's target is met. After you stop tracking, it waits until you have been away before suggesting again.
+
+Each reminder appears as a notification and in the menu bar popover, and the menu bar icon shows a badge while one is waiting. Without notification permission, the popover and icon still work. Thresholds, snooze, spacing, and the sleep auto-stop are in Settings (Cmd-,).
 
 ## Expected hours and balance
 

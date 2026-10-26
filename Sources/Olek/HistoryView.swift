@@ -44,16 +44,8 @@ struct HistoryView: View {
         .onChange(of: selected) { _, date in
             if date.startOfMonth != visibleMonth { visibleMonth = date.startOfMonth }
         }
-        .onAppear {
-            // While History is open Olek behaves like a normal app: Dock icon, Cmd-Tab,
-            // and a menu bar with Edit and Window commands.
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate()
-            calendarFocused = true
-        }
-        .onDisappear {
-            NSApp.setActivationPolicy(.accessory)
-        }
+        .regularAppWhileVisible()
+        .onAppear { calendarFocused = true }
     }
 
     // MARK: Sidebar

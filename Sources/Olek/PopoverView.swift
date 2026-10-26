@@ -11,6 +11,10 @@ struct PopoverView: View {
                 NoticeView(notice: notice, model: model)
             }
 
+            if let reminder = model.reminder {
+                ReminderPromptView(reminder: reminder, model: model)
+            }
+
             Button(action: model.toggle) {
                 Label(
                     model.isWorking ? "Stop" : "Start",
@@ -53,6 +57,10 @@ struct PopoverView: View {
                     NSApp.activate()
                 }
                 .keyboardShortcut("y")
+                SettingsLink {
+                    Text("Settings")
+                }
+                .keyboardShortcut(",")
                 Spacer()
                 Button("Quit Olek") { NSApplication.shared.terminate(nil) }
                     .keyboardShortcut("q")
@@ -305,5 +313,50 @@ private struct NoticeView: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.yellow.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - Reminder prompt
+
+/// The same question as the notification, answerable here when notifications are off or missed.
+private struct ReminderPromptView: View {
+    let reminder: Reminder
+    let model: TrackingController
+
+    @State private var chosenStart = Date()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch reminder {
+            case let .idleWhileTracking(since):
+                let time = TimeFormat.hourMinute(since)
+                Text("You haven't used your Mac since \(time). Still working?")
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Continue") { model.handle(.continueWorking) }
+                    Button("Stop at \(time)") { model.handle(.stopAtIdleStart) }
+                    Button("Later") { model.handle(.remindLater) }
+                }
+            case let .activeWhileStopped(since):
+                let time = TimeFormat.hourMinute(since)
+                Text("You've been using your Mac since \(time) while tracking is stopped.")
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Start at \(time)") { model.handle(.startAtActiveStart) }
+                    Button("Not working") { model.handle(.notWorking) }
+                }
+                HStack {
+                    DatePicker("Start at", selection: $chosenStart, displayedComponents: .hourAndMinute)
+                        .environment(\.locale, Locale(identifier: "en_GB"))
+                        .fixedSize()
+                    Button("Start") { model.start(at: chosenStart) }
+                        .accessibilityLabel("Start at chosen time")
+                }
+                .onAppear { chosenStart = since }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 }
