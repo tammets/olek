@@ -1,0 +1,25 @@
+# Build output
+.build/
+build/
+dist/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+
+# App data (never commit personal tracking data)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Signing material
+*.p12
+*.cer
+*.mobileprovision
+
+# macOS
+.DS_Store
+
+# Local planning notes stay out of the repo; only README is published
+*.md
+!README.md
