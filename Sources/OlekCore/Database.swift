@@ -50,9 +50,10 @@ private var transient: sqlite3_destructor_type {
 final class Database {
     private let handle: OpaquePointer
 
-    init(path: String) throws {
+    init(path: String, readOnly: Bool = false) throws {
         var db: OpaquePointer?
-        let status = sqlite3_open_v2(path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil)
+        let flags = readOnly ? SQLITE_OPEN_READONLY : (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE)
+        let status = sqlite3_open_v2(path, &db, flags, nil)
         guard status == SQLITE_OK, let db else {
             let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "status \(status)"
             sqlite3_close(db)
@@ -60,7 +61,9 @@ final class Database {
         }
         handle = db
         sqlite3_busy_timeout(db, 2_000)
-        try execute("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
+        if !readOnly {
+            try execute("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
+        }
     }
 
     deinit {
@@ -116,6 +119,19 @@ final class Database {
 
     func userVersion() throws -> Int {
         try query("PRAGMA user_version") { Int($0.int(0)) }.first ?? 0
+    }
+
+    /// Copies this whole database into `target`, replacing its contents, using SQLite's online
+    /// backup API. Safe while this database is open and in use.
+    func copy(into target: Database) throws {
+        guard let backup = sqlite3_backup_init(target.handle, "main", handle, "main") else {
+            throw DatabaseError.statement(target.lastError, sql: "backup")
+        }
+        let status = sqlite3_backup_step(backup, -1)
+        sqlite3_backup_finish(backup)
+        guard status == SQLITE_DONE else {
+            throw DatabaseError.statement(target.lastError, sql: "backup")
+        }
     }
 
     var lastInsertRowID: Int64 {

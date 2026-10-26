@@ -25,6 +25,7 @@ APP="build/$APP_NAME.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Olek" "$APP/Contents/MacOS/Olek"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 sed -e "s/__BUNDLE_ID__/$BUNDLE_ID/" \
     -e "s/__APP_NAME__/$APP_NAME/" \

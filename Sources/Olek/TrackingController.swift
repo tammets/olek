@@ -27,6 +27,10 @@ final class TrackingController {
     /// A reminder waiting for an answer, shown in the popover as well as a notification.
     private(set) var reminder: Reminder?
     private(set) var reminderSettings = ReminderSettings()
+    private(set) var workSettings = WorkSettings()
+    private(set) var generalSettings = GeneralSettings()
+    /// The accounting start in effect: the saved one, or the day of first launch.
+    private(set) var accountingStart = LocalDate(Date(), calendar: .autoupdatingCurrent)
     private(set) var errorMessage: String?
 
     var isWorking: Bool { openSession != nil }
@@ -132,6 +136,49 @@ final class TrackingController {
             // The reminder was already answered elsewhere, e.g. in the popover.
             break
         }
+    }
+
+    func updateWorkSettings(_ settings: WorkSettings) {
+        perform { try $0.saveWorkSettings(settings) }
+    }
+
+    func updateGeneralSettings(_ settings: GeneralSettings) {
+        perform { try $0.saveGeneralSettings(settings) }
+    }
+
+    // MARK: Data
+
+    func sessionsCSV() -> String {
+        CSVExport.sessions(allSessions, timeZone: calendar.timeZone)
+    }
+
+    /// From the first recorded day or the accounting start, whichever is earlier, through today.
+    func dailySummaryCSV() -> String? {
+        guard let ledger else { return nil }
+        let firstSession = allSessions.first.map { LocalDate($0.start, calendar: calendar) } ?? today
+        return CSVExport.dailySummary(
+            ledger: ledger,
+            from: min(firstSession, accountingStart),
+            through: today,
+            openingBalance: openingBalance
+        )
+    }
+
+    func backup(to url: URL) throws {
+        guard let store else { throw SessionError.notFound }
+        try store.backup(to: url)
+    }
+
+    func restore(from url: URL) throws -> URL {
+        let stamp = CSVExport.timestamp(Date(), calendar.timeZone)
+            .replacingOccurrences(of: ":", with: "-")
+        let safety = AppPaths.backupsFolder.appending(path: "before-restore-\(stamp).sqlite")
+        // Whatever was pending refers to sessions that may no longer exist.
+        notice = nil
+        clearReminder()
+        try mutate { try $0.restore(from: url, safetyCopy: safety) }
+        loadReminderSettings()
+        return safety
     }
 
     func updateReminderSettings(_ settings: ReminderSettings) {
@@ -310,8 +357,10 @@ final class TrackingController {
             openSession = try store.openSession()
             latestSession = try store.latestSession()
             let settings = try store.workSettings()
+            workSettings = settings
+            generalSettings = try store.generalSettings()
             let firstLaunch = try store.firstLaunchDate() ?? now
-            let accountingStart = settings.accountingStart ?? LocalDate(firstLaunch, calendar: calendar)
+            accountingStart = settings.accountingStart ?? LocalDate(firstLaunch, calendar: calendar)
             workingCalendar = WorkingCalendar(
                 settings: settings,
                 overrides: try store.dayOverrides(),

@@ -86,6 +86,14 @@ public final class SessionStore: @unchecked Sendable {
         try saveSetting("reminders", settings)
     }
 
+    public func generalSettings() throws -> GeneralSettings {
+        try setting("general", as: GeneralSettings.self) ?? GeneralSettings()
+    }
+
+    public func saveGeneralSettings(_ settings: GeneralSettings) throws {
+        try saveSetting("general", settings)
+    }
+
     // MARK: Day overrides
 
     public func dayOverrides() throws -> [DayOverride] {
@@ -319,6 +327,11 @@ public final class SessionStore: @unchecked Sendable {
                 [.text(key), .text(json)]
             )
         }
+    }
+
+    /// Raw database access for maintenance tasks such as backup, under the store's lock.
+    func withDatabase<T>(_ body: (Database) throws -> T) throws -> T {
+        try locked { try body(db) }
     }
 
     private func locked<T>(_ body: () throws -> T) rethrows -> T {

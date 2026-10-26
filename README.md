@@ -8,7 +8,7 @@ No accounts, no cloud, no telemetry. All data stays on your Mac.
 
 ## Status
 
-Milestones 1 to 4 (foundation, accounting, history, reminders) are done.
+All five planned milestones are done: foundation, accounting, history, reminders, and settings with data tools.
 
 | Area | State |
 |---|---|
@@ -20,7 +20,7 @@ Milestones 1 to 4 (foundation, accounting, history, reminders) are done.
 | Quick start/stop time corrections | Done |
 | History window and editing | Done |
 | Idle and activity reminders | Done |
-| Settings, export, backup | Milestone 5 |
+| Settings, launch at login, export, backup | Done |
 
 ## Requirements
 
@@ -50,9 +50,15 @@ Both can run at the same time. Development never touches your real tracking data
 
 ## Installing and updating
 
-Run `scripts/install.sh`. It builds a release bundle, quits the running copy, replaces `/Applications/Olek.app`, and relaunches it.
+1. Install the Command Line Tools if needed: `xcode-select --install`.
+2. Clone the repository and run `scripts/install.sh`. It builds a release bundle, quits any running copy, replaces `/Applications/Olek.app`, and opens it.
+3. Olek appears in the menu bar as a stopwatch. Open Settings (Cmd-, from the popover) and check the **Schedule** tab: weekly hours, the accounting start, and an opening balance if you carry hours over from elsewhere.
+4. In **General**, turn on **Open Olek at login**. Do this only after the app is in Applications, because the login item points at the app's current location.
+5. The first time you start tracking, macOS asks whether Olek may send notifications. Allow it to get reminders as notifications; without it they appear only in the popover.
 
-Updating works the same way: pull the latest code and run `scripts/install.sh` again. Your data is stored outside the app bundle, so replacing the app never touches it. If a new version changes the database schema, it is migrated automatically on first launch.
+To update, pull the latest code and run `scripts/install.sh` again. Your data is stored outside the app bundle, so replacing the app never touches it, and the login item keeps working because the path stays the same. If a new version changes the database schema, it is migrated automatically on first launch.
+
+To uninstall, turn off Open Olek at login, quit Olek, and delete `/Applications/Olek.app`. Delete `~/Library/Application Support/Olek` too if you also want to remove your data.
 
 ## Sharing with others
 
@@ -130,8 +136,23 @@ Resources/          Info.plist template
 scripts/            build, bundle, run, install, package, test
 ```
 
-## Data location
+## Your data
 
-`~/Library/Application Support/Olek/olek.sqlite`
+Everything lives in `~/Library/Application Support/Olek/olek.sqlite`, a standard SQLite database you can inspect with `sqlite3`. Nothing leaves your Mac.
 
-It is a standard SQLite database and can be inspected with `sqlite3`.
+Settings, Data offers:
+
+- **Export Sessions as CSV.** One row per session with local start and end times including their UTC offset.
+- **Export Daily Summary as CSV.** One row per day with expected, worked, and difference in minutes and the running balance.
+- **Back Up Database.** A single self-contained `.sqlite` file with all sessions, day types, and settings.
+- **Restore from Backup.** Checks the file first (that it is an intact Olek database from this or an older version) and shows what it contains. Before replacing anything, your current data is saved to the `Backups` folder next to the database, so a restore can be undone by restoring that file.
+
+## App icon
+
+The icon is drawn in code. To change it, edit `scripts/make-icon.swift` and run `swift scripts/make-icon.swift`, which rewrites `Resources/AppIcon.icns`.
+
+## Known limitations
+
+- Times are always shown with a 24-hour clock and dates in day-month order.
+- The app is ad-hoc signed, not notarized. See Sharing with others.
+- The interface is in English. Strings are prepared for translation, with Estonian planned.
