@@ -89,5 +89,6 @@ iconutil.arguments = ["-c", "icns", iconset.path, "-o", output.path]
 try iconutil.run()
 iconutil.waitUntilExit()
 guard iconutil.terminationStatus == 0 else { fatalError("iconutil failed") }
-try writePNG(pixels: 512, to: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("olek-icon-preview.png"))
-print("Wrote \(output.path)")
+// A small PNG for the README.
+try writePNG(pixels: 256, to: URL(fileURLWithPath: "docs/images/icon.png"))
+print("Wrote \(output.path) and docs/images/icon.png")

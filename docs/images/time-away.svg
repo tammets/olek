@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="168" viewBox="0 0 760 168" role="img" aria-labelledby="t d">
+  <title id="t">What Olek does after time away while tracking</title>
+  <desc id="d">Under 15 minutes away: tracking continues. 15 minutes to 4 hours: tracking continues and Olek asks whether you were working. 4 hours or more: tracking stops at the moment the Mac went away, with an undo.</desc>
+  <style>
+    .caption { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #57606a; }
+    .tick { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #57606a; }
+    .label { font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .note { font: 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #57606a; }
+    .line { stroke: #d0d7de; }
+    .a { fill: #dafbe1; } .a-text { fill: #1a7f37; }
+    .b { fill: #fff1c5; } .b-text { fill: #9a6700; }
+    .c { fill: #ffebe9; } .c-text { fill: #cf222e; }
+    @media (prefers-color-scheme: dark) {
+      .caption, .tick, .note { fill: #9198a1; }
+      .line { stroke: #3d444d; }
+      .a { fill: #12261e; } .a-text { fill: #57ab5a; }
+      .b { fill: #272115; } .b-text { fill: #d29922; }
+      .c { fill: #2c1719; } .c-text { fill: #f47067; }
+    }
+  </style>
+
+  <text class="caption" x="20" y="22">Mac asleep, Olek quit or crashed, while a session is running</text>
+
+  <g class="line" stroke-width="1">
+    <line x1="20" y1="40" x2="20" y2="112"/>
+    <line x1="150" y1="40" x2="150" y2="112"/>
+    <line x1="420" y1="40" x2="420" y2="112"/>
+  </g>
+  <text class="tick" x="24" y="50">0</text>
+  <text class="tick" x="154" y="50">15 min</text>
+  <text class="tick" x="424" y="50">4 hours</text>
+  <text class="tick" x="740" y="50" text-anchor="end">time away →</text>
+
+  <rect class="a" x="20" y="60" width="130" height="40" rx="8"/>
+  <rect class="b" x="150" y="60" width="270" height="40"/>
+  <rect class="c" x="420" y="60" width="320" height="40" rx="8"/>
+  <rect class="b" x="146" y="60" width="8" height="40"/>
+  <rect class="b" x="412" y="60" width="8" height="40"/>
+
+  <text class="label a-text" x="85" y="85" text-anchor="middle">Carries on</text>
+  <text class="label b-text" x="285" y="85" text-anchor="middle">Carries on, asks you</text>
+  <text class="label c-text" x="580" y="85" text-anchor="middle">Stops when you left</text>
+
+  <text class="note" x="85" y="132" text-anchor="middle">a restart or a nap</text>
+  <text class="note" x="285" y="132" text-anchor="middle">“Were you working?”</text>
+  <text class="note" x="285" y="150" text-anchor="middle">keep it, or stop at the gap</text>
+  <text class="note" x="580" y="132" text-anchor="middle">nothing is invented overnight</text>
+  <text class="note" x="580" y="150" text-anchor="middle">one click undoes it</text>
+</svg>

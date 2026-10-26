@@ -1,158 +1,93 @@
-# Olek
+<p align="center">
+  <img src="docs/images/icon.png" width="128" height="128" alt="">
+</p>
 
-Your time. Your balance.
+<h1 align="center">Olek</h1>
 
-Olek is a small native macOS menu bar app for tracking working time. You are either working or not working: one toggle. It records sessions locally, compares them against expected working hours, and keeps a running overtime/undertime balance.
+<p align="center"><em>Your time. Your balance.</em></p>
 
-No accounts, no cloud, no telemetry. All data stays on your Mac.
+*Olek* is Estonian for *state*, and this app has exactly two: working and not working. It sits in the Mac menu bar, records your working time with a single toggle, compares it with the hours you are expected to work, and keeps a running balance of overtime and undertime across weeks and months.
 
-## Status
+It knows Estonian public holidays and the shortened days before them. It nudges you when you forget to start or stop, and it never makes up time it did not see. Everything stays on your Mac.
 
-All five planned milestones are done: foundation, accounting, history, reminders, and settings with data tools.
+<p align="center">
+  <img src="docs/images/popover.png" width="300" alt="The menu bar popover: a Stop button, the running session, today's progress, this week and month, and the balance">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/history-dark.png">
+    <img src="docs/images/history-light.png" width="520" alt="The History window: a month calendar coloured by whether each day met its target, next to the selected day's sessions">
+  </picture>
+</p>
 
-| Area | State |
-|---|---|
-| Menu bar app with Start/Stop | Done |
-| Persistent sessions (SQLite) | Done |
-| Live session timer and today's total | Done |
-| Recovery after sleep, crash, or quit | Done |
-| Expected hours, Estonian holidays, balance | Done |
-| Quick start/stop time corrections | Done |
-| History window and editing | Done |
-| Idle and activity reminders | Done |
-| Settings, launch at login, export, backup | Done |
+## Getting it
 
-## Requirements
+**Download.** Take the latest `Olek-x.y.z.zip` from [Releases](../../releases), unzip it, and drag Olek into Applications. Olek is not notarized by Apple, so the first launch of each version is blocked. Open System Settings, go to Privacy & Security, and click **Open Anyway**. It runs on Apple Silicon Macs with macOS 14 or later.
 
-- macOS 14 Sonoma or later
-- Xcode Command Line Tools (`xcode-select --install`). The full Xcode app is not required.
-
-## Build and run
+**Build it.** With Xcode Command Line Tools installed:
 
 ```sh
-scripts/run.sh       # build a debug bundle and launch "Olek Dev"
-scripts/test.sh      # run the test suite
-scripts/install.sh   # build a release bundle and install/update /Applications/Olek.app
-scripts/package.sh   # build a release zip in dist/ for sharing
+git clone git@github.com:tammets/olek.git && cd olek
+scripts/install.sh
 ```
 
-`swift build` works directly. For tests, use `scripts/test.sh`: with only Command Line Tools installed, Swift Testing sits outside the compiler's default search paths, and the script adds them.
+That builds Olek, puts it in Applications, and opens it. Run it again after pulling changes to update. Your data lives outside the app, so updates never touch it.
 
-### Development and release builds are separate
+**First steps.** Open Settings from the popover. Check your weekly hours, set when the accounting starts, and add an opening balance if you are bringing hours over from somewhere else. Then turn on *Open Olek at login*.
 
-| | Debug (`run.sh`) | Release (`install.sh`) |
-|---|---|---|
-| App name | Olek Dev | Olek |
-| Bundle ID | `ee.olek.app.dev` | `ee.olek.app` |
-| Data folder | `~/Library/Application Support/Olek Dev/` | `~/Library/Application Support/Olek/` |
+## How it counts
 
-Both can run at the same time. Development never touches your real tracking data.
+**Expected hours** come from your weekly schedule, by default eight hours Monday to Friday. Estonian public holidays count as zero, Easter-based ones included. Under Employment Contracts Act § 53, the working day right before New Year's Day, Independence Day, Victory Day, and Christmas Eve is three hours shorter. That applies only when that calendar day is a working day for you, so a Monday holiday does not shorten the Friday. Vacation, sick leave, a day off, or a half day can be set for any date and win over everything else.
 
-## Installing and updating
+**The balance** adds up worked minus expected for every day from the accounting start through yesterday. Today is still in progress, so it gets its own progress bar instead of greeting you with −8h every morning. The week and the month each show two numbers: how far ahead or behind you are through yesterday, and how much of the whole period is done.
 
-1. Install the Command Line Tools if needed: `xcode-select --install`.
-2. Clone the repository and run `scripts/install.sh`. It builds a release bundle, quits any running copy, replaces `/Applications/Olek.app`, and opens it.
-3. Olek appears in the menu bar as a stopwatch. Open Settings (Cmd-, from the popover) and check the **Schedule** tab: weekly hours, the accounting start, and an opening balance if you carry hours over from elsewhere.
-4. In **General**, turn on **Open Olek at login**. Do this only after the app is in Applications, because the login item points at the app's current location.
-5. The first time you start tracking, macOS asks whether Olek may send notifications. Allow it to get reminders as notifications; without it they appear only in the popover.
+**Sleep, restarts, and crashes** never create hours out of nothing. While you track, Olek notes every minute that it is alive, and it decides by how long it was away:
 
-To update, pull the latest code and run `scripts/install.sh` again. Your data is stored outside the app bundle, so replacing the app never touches it, and the login item keeps working because the path stays the same. If a new version changes the database schema, it is migrated automatically on first launch.
+<p align="center">
+  <img src="docs/images/time-away.svg" width="760" alt="Under 15 minutes away, tracking carries on. From 15 minutes to 4 hours, it carries on and asks whether you were working. After 4 hours it stops at the moment the Mac went away, and one click undoes that.">
+</p>
 
-To uninstall, turn off Open Olek at login, quit Olek, and delete `/Applications/Olek.app`. Delete `~/Library/Application Support/Olek` too if you also want to remove your data.
+**Reminders** go by one number: how long ago the keyboard, mouse, or trackpad was last used. Olek never sees what you type or which apps you use.
 
-## Sharing with others
+- Tracking, but nobody has touched the Mac for 15 minutes: *Still working?* Keep going, stop now, stop when you went idle, or be asked later. Being idle never stops tracking on its own, since meetings and reading are work too.
+- Using the Mac for 10 minutes without tracking: *Start tracking?*, from when the activity began or a time you pick. This only happens on workdays that have not reached their hours yet, and after you stop, Olek waits until you have been away before it asks again.
 
-`scripts/package.sh` produces `dist/Olek-<version>.zip`. The app is ad-hoc signed, not notarized, so macOS Gatekeeper blocks it on first open when downloaded from the internet. The recipient can do either of these:
+All thresholds can be changed in Settings.
 
-- Right-click Olek.app, choose Open, then confirm.
-- Remove the quarantine flag:
+## Fixing the record
 
-  ```sh
-  xattr -dr com.apple.quarantine /Applications/Olek.app
-  ```
+The popover has −30, −10, +10, and +30 next to the start and stop times. Each button moves only the time next to it, so "−10 next to Started" can only mean you started ten minutes earlier.
 
-This repeats for each new version. Proper signing and in-app updates would need an Apple Developer account and are out of scope for now.
-
-## How tracking works
-
-- Each session stores a start and end timestamp in UTC. Durations are always computed from timestamps, never from a running timer.
-- Only one session can be open at a time, and sessions never overlap.
-- Daily totals split sessions at local midnight, so DST days and time zone changes are handled correctly.
-
-### Sleep, crashes, and forgotten sessions
-
-While tracking, Olek records a heartbeat every minute and when the Mac goes to sleep or Olek quits. When Olek wakes up or relaunches with a session still open, it looks at how long it was away:
-
-| Away for | What happens |
-|---|---|
-| Under 15 minutes | Nothing. The session continues. |
-| 15 minutes to 4 hours | The session continues, and Olek asks whether you were working. You can keep the time or stop at the moment it went away. |
-| 4 hours or more | The session is stopped at the moment Olek went away. An undo button reopens it if you were in fact working. |
-
-Olek never invents working time it could not observe.
-
-## History
-
-Open History from the menu bar popover (Cmd-Y). While it is open, Olek shows a Dock icon and a regular menu bar.
-
-- **Calendar.** Each day is coloured by status: target met, below target, no record, day off or holiday, and today. Days with an override show a dot, holidays a star. Arrow keys move the selection, Cmd-Left and Cmd-Right change month, Cmd-T jumps to today.
-- **Day view.** Worked, expected, completion, and difference for the day. Change the day type (vacation, day off, sick leave, non-working, working day, adjusted hours) with an optional note. Add (Cmd-N), edit, delete, or insert a break into sessions. Edits that would overlap another session, end before they start, or reach into the future are refused with an explanation.
-- **Week, month, and year views.** Totals plus one row per day or month. Double-click a row to open it.
-
-## Reminders
-
-Olek reads only how many seconds have passed since the last keyboard, mouse, or trackpad input. It needs no special permission and never sees what you type, which apps you use, or what is on screen.
-
-- **Still working?** When tracking runs and the Mac has had no input for 15 minutes, Olek asks. You can continue, stop now, stop at the moment you went idle, or be reminded later. Idleness alone never stops tracking, since meetings and reading are work too.
-- **Start tracking?** When the Mac has been in continuous use for 10 minutes while tracking is stopped, Olek suggests starting, from the moment the activity began or a time you type. This only happens on scheduled workdays until the day's target is met. After you stop tracking, it waits until you have been away before suggesting again.
-
-Each reminder appears as a notification and in the menu bar popover, and the menu bar icon shows a badge while one is waiting. Without notification permission, the popover and icon still work. Thresholds, snooze, spacing, and the sleep auto-stop are in Settings (Cmd-,).
-
-## Expected hours and balance
-
-Expected time for each date follows these rules. The first rule that applies wins.
-
-1. Dates before the accounting start expect nothing.
-2. A personal day override: vacation, day off, sick leave, a custom non-working or working day, or adjusted hours.
-3. Estonian public holidays expect nothing.
-4. A shortened pre-holiday day expects the scheduled time minus three hours.
-5. The weekly schedule, by default eight hours Monday to Friday.
-
-**Estonian public holidays** are computed for any year: New Year's Day, Independence Day, Good Friday, Easter Sunday, Spring Day, Pentecost, Victory Day, Midsummer Day, Restoration of Independence Day, and Christmas Eve, Day, and Boxing Day.
-
-**Shortened days.** Employment Contracts Act § 53 shortens the working day before New Year's Day, Independence Day, Victory Day, and Christmas Eve by three hours. Olek applies this to the calendar day directly before the holiday when that day is a working day for you, including a weekend day you normally work. If that day is not a working day, nothing is shortened and the reduction does not move to an earlier day. Sources: [ERR News](https://news.err.ee/1609505593/most-of-estonia-s-public-holidays-to-fall-on-weekdays-in-2025), [Grant Thornton](https://www.grantthornton.ee/en/insights1/2019-working-on-public-holidays-must-be-paid-at-double-the-rate/), [NJORD Law](https://www.njordlaw.com/njord-estonia-summarised-working-time-and-public-holidays-what-consider-when-calculating-working).
-
-**Balance** is the opening balance plus worked minus expected time for every day from the accounting start through yesterday. Today is left out because it is still in progress; it appears separately as today's progress. Week and month show two figures. "Ahead" or "behind" compares against expected time through yesterday. The second line compares everything worked so far against the whole period.
-
-The accounting start defaults to the day Olek was first launched. A settings window for the schedule, accounting start, and opening balance arrives in Milestone 5.
-
-## Project layout
-
-```
-Sources/OlekCore/   business logic and SQLite persistence, no UI
-Sources/Olek/       the menu bar app
-Tests/              Swift Testing tests for OlekCore
-Resources/          Info.plist template
-scripts/            build, bundle, run, install, package, test
-```
+**History** (Cmd-Y) shows a month calendar coloured by whether each day met its target, and day, week, month, and year views. From there you can add a forgotten session, edit or delete one, cut a lunch break out of a long one, and mark days as vacation or sick leave. Edits that would overlap another session or reach into the future are refused with a reason.
 
 ## Your data
 
-Everything lives in `~/Library/Application Support/Olek/olek.sqlite`, a standard SQLite database you can inspect with `sqlite3`. Nothing leaves your Mac.
+Everything is in one SQLite file in `~/Library/Application Support/Olek`. Nothing is sent anywhere, and there is no account.
 
-Settings, Data offers:
+The Data tab in Settings exports sessions or a daily summary with the running balance as CSV, and makes single-file backups. A restore checks the file first, shows what is in it, and copies your current data to a `Backups` folder before replacing anything, so it can always be undone.
 
-- **Export Sessions as CSV.** One row per session with local start and end times including their UTC offset.
-- **Export Daily Summary as CSV.** One row per day with expected, worked, and difference in minutes and the running balance.
-- **Back Up Database.** A single self-contained `.sqlite` file with all sessions, day types, and settings.
-- **Restore from Backup.** Checks the file first (that it is an intact Olek database from this or an older version) and shows what it contains. Before replacing anything, your current data is saved to the `Backups` folder next to the database, so a restore can be undone by restoring that file.
+## Development
 
-## App icon
+Swift 6, SwiftUI, and the system SQLite library, with no third-party dependencies. It builds with Xcode Command Line Tools alone; the full Xcode app is not needed.
 
-The icon is drawn in code. To change it, edit `scripts/make-icon.swift` and run `swift scripts/make-icon.swift`, which rewrites `Resources/AppIcon.icns`.
+| Command | Does |
+|---|---|
+| `scripts/run.sh` | Build and launch **Olek Dev**, a separate copy with its own data |
+| `scripts/test.sh` | Run the tests |
+| `scripts/install.sh` | Build a release and install it in Applications |
+| `scripts/package.sh` | Build a release zip in `dist/` |
 
-## Known limitations
+`Sources/OlekCore` holds all the rules (calendar, holidays, balance, reminders, storage) and has no UI, which keeps it fully testable. `Sources/Olek` is the menu bar app. The icon is drawn in code by `scripts/make-icon.swift`.
 
-- Times are always shown with a 24-hour clock and dates in day-month order.
-- The app is ad-hoc signed, not notarized. See Sharing with others.
-- The interface is in English. Strings are prepared for translation, with Estonian planned.
+**Releasing.** Bump `VERSION`, commit, and push an annotated tag whose message is the release notes in Markdown:
+
+```sh
+git tag -a v1.1.0 --cleanup=verbatim -F notes.txt
+git push origin v1.1.0
+```
+
+GitHub Actions then tests, builds, and publishes the release with the zip and its checksum.
+
+## Limits, for now
+
+- Times use a 24-hour clock and dates are written day first.
+- The interface is in English. It is ready for translation, and Estonian is next.
+- Builds are not notarized, so each new download needs *Open Anyway* once.

@@ -1,0 +1,52 @@
+name: Release
+
+# Pushing an annotated tag such as v1.2.0 builds, tests, and publishes a release.
+# The tag message becomes the release notes, so write it in Markdown:
+#   git tag -a v1.2.0 --cleanup=verbatim -F notes.txt && git push origin v1.2.0
+# (--cleanup=verbatim keeps "## 1.2.0" headings, which git would otherwise strip as comments.)
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check that VERSION matches the tag
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "VERSION is $version but the tag is $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: scripts/test.sh
+
+      - name: Build and package
+        run: |
+          scripts/package.sh
+          cd dist && shasum -a 256 Olek-*.zip > "Olek-${GITHUB_REF_NAME#v}.zip.sha256"
+
+      - name: Read release notes from the tag
+        run: |
+          # Checkout can leave the tag lightweight; fetch the annotated tag to get its message.
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+          cat notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/Olek-*.zip dist/Olek-*.sha256 \
+            --title "${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md

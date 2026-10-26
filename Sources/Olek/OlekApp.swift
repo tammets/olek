@@ -28,6 +28,15 @@ struct OlekApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let controller = TrackingController()
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        // For README screenshots: open "Olek Dev.app" --args -OlekAppearance dark
+        if let style = UserDefaults.standard.string(forKey: "OlekAppearance") {
+            NSApp.appearance = NSAppearance(named: style == "dark" ? .darkAqua : .aqua)
+        }
+        #endif
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         // Recording the quit time keeps a quick relaunch from looking like a liveness gap.
         controller.recordHeartbeatNow()

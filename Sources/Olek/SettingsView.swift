@@ -102,10 +102,23 @@ private struct GeneralTab: View {
                     Text("Nothing").tag(GeneralSettings.MenuBarText.iconOnly)
                 }
             }
+
+            Section {
+                LabeledContent("Version") {
+                    Text(versionText).textSelection(.enabled)
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear { loginStatus = LoginItem.status }
     }
+}
+
+private var versionText: String {
+    let info = Bundle.main.infoDictionary ?? [:]
+    let version = info["CFBundleShortVersionString"] as? String ?? "?"
+    let build = info["CFBundleVersion"] as? String ?? "?"
+    return "\(version) (\(build))"
 }
 
 // MARK: - Schedule
