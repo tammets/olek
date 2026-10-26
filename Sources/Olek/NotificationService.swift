@@ -1,6 +1,7 @@
 import Foundation
 import OlekCore
-import UserNotifications
+// Older SDKs (CI runs one) lack Sendable annotations for this module.
+@preconcurrency import UserNotifications
 
 /// Posts reminder notifications with actions and routes the chosen action back to the controller.
 @MainActor
