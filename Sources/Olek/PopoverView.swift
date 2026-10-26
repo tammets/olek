@@ -66,8 +66,20 @@ struct PopoverView: View {
         }
         .padding(16)
         .frame(width: 330)
+        .background {
+            if screenshotMode { Color(nsColor: .windowBackgroundColor) }
+        }
     }
 }
+
+// Single-window captures cannot include what lies behind the translucent popover, so its
+// material comes out flat grey. Screenshot runs (debug builds launched with -OlekAppearance)
+// get an opaque window background instead.
+#if DEBUG
+private let screenshotMode = UserDefaults.standard.string(forKey: "OlekAppearance") != nil
+#else
+private let screenshotMode = false
+#endif
 
 // MARK: - Session
 
