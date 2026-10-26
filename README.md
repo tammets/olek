@@ -12,10 +12,7 @@ It knows Estonian public holidays and the shortened days before them. It nudges 
 
 <p align="center">
   <img src="docs/images/popover.png" width="300" alt="The menu bar popover: a Stop button, the running session, today's progress, this week and month, and the balance">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/history-dark.png">
-    <img src="docs/images/history-light.png" width="520" alt="The History window: a month calendar coloured by whether each day met its target, next to the selected day's sessions">
-  </picture>
+  <img src="docs/images/history.png" width="520" alt="The History window: a month calendar coloured by whether each day met its target, next to the selected day's sessions">
 </p>
 
 ## Getting it

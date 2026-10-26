@@ -22,11 +22,9 @@ struct PopoverView: View {
                 )
                 .font(.title3.weight(.semibold))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                .padding(.vertical, 14)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(model.isWorking ? .red : .green)
+            .buttonStyle(ToggleButtonStyle(color: model.isWorking ? .olekStop : .olekStart))
             .keyboardShortcut(.defaultAction)
 
             SessionSection(model: model)
@@ -358,5 +356,26 @@ private struct ReminderPromptView: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - Start/Stop button
+
+extension Color {
+    // Fixed deep colours instead of the system tint: in dark mode macOS lightens a tinted
+    // prominent button to a pale red, and white text on it becomes hard to read.
+    static let olekStop = Color(red: 0.78, green: 0.16, blue: 0.14)
+    static let olekStart = Color(red: 0.12, green: 0.53, blue: 0.27)
+}
+
+private struct ToggleButtonStyle: ButtonStyle {
+    let color: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background(Capsule().fill(color))
+            .overlay(Capsule().fill(.black.opacity(configuration.isPressed ? 0.15 : 0)))
+            .contentShape(Capsule())
     }
 }
