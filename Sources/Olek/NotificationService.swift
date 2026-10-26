@@ -26,7 +26,13 @@ final class NotificationService: NSObject {
     }
 
     func refreshAuthorization() async {
-        authorization = await center.notificationSettings().authorizationStatus
+        // Only the status enum leaves the callback; older SDKs mark the settings object
+        // as non-Sendable, so it must not cross into the main actor.
+        authorization = await withCheckedContinuation { continuation in
+            center.getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus)
+            }
+        }
     }
 
     func requestAuthorizationIfNeeded() {
