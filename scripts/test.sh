@@ -15,6 +15,6 @@ if [[ -d "$DEV/Frameworks/Testing.framework" && "$(xcode-select -p)" == *Command
         -Xlinker -F -Xlinker "$DEV/Frameworks" \
         -Xlinker -rpath -Xlinker "$DEV/Frameworks" \
         -Xlinker -rpath -Xlinker "$DEV/usr/lib" \
-        "$@"
+        $OLEK_LINK_FLAGS "$@"
 fi
-exec swift test "$@"
+exec swift test $OLEK_LINK_FLAGS "$@"

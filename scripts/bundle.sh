@@ -17,8 +17,16 @@ esac
 
 source scripts/sdk.sh
 
-swift build -c "$CONFIG" >&2
-BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
+# Unquoted on purpose: the flags are separate words without spaces.
+swift build -c "$CONFIG" $OLEK_LINK_FLAGS >&2
+BIN_DIR="$(swift build -c "$CONFIG" $OLEK_LINK_FLAGS --show-bin-path)"
+
+# macOS draws apps built for an SDK before 26 in the old style, so a release must not slip back.
+SDK_VERSION="$(vtool -show-build "$BIN_DIR/Olek" | awk '$1 == "sdk" { print $2; exit }')"
+if [[ "$CONFIG" == release && "${SDK_VERSION%%.*}" -lt 26 ]]; then
+    echo "error: the binary was built for macOS SDK $SDK_VERSION; releases need SDK 26 or later" >&2
+    exit 1
+fi
 
 VERSION="$(tr -d '[:space:]' < VERSION)"
 BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 0)"
