@@ -15,6 +15,8 @@ case "$CONFIG" in
     *) echo "usage: $0 [debug|release]" >&2; exit 1 ;;
 esac
 
+source scripts/sdk.sh
+
 swift build -c "$CONFIG" >&2
 BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
 
