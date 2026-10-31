@@ -367,12 +367,19 @@ private struct RemindersTab: View {
 
     var body: some View {
         Form {
-            Section("Idle while tracking") {
-                Toggle("Ask whether I'm still working when my Mac is idle", isOn: binding(\.idleReminderEnabled))
+            Section {
+                Toggle("Count time without keyboard or mouse input as away", isOn: binding(\.idleReminderEnabled))
                 Stepper(value: binding(\.idleThresholdMinutes), in: 5...120, step: 5) {
-                    Text("After \(minutes(model.reminderSettings.idleThresholdMinutes)) without input")
+                    Text("Ask about absences of \(minutes(model.reminderSettings.idleThresholdMinutes)) or more")
                 }
-                .disabled(!model.reminderSettings.idleReminderEnabled)
+                Stepper(value: binding(\.autoStopHours), in: 1...24) {
+                    Text("Stop tracking after \(hours(model.reminderSettings.autoStopHours)) away")
+                }
+            } header: {
+                Text("Away while tracking")
+            } footer: {
+                Text("Sleep, a closed lid, a dark screen, and Olek not running always count as away. When you come back, Olek asks once whether the time away was work, and with input counted it also sends a “Still working?” notification if you leave the screen on. After a long absence it stops tracking at the moment you left.")
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -395,17 +402,6 @@ private struct RemindersTab: View {
                 Stepper(value: binding(\.minimumSpacingMinutes), in: 5...240, step: 5) {
                     Text("At most one reminder of each kind every \(minutes(model.reminderSettings.minimumSpacingMinutes))")
                 }
-            }
-
-            Section {
-                Stepper(value: binding(\.autoStopHours), in: 1...24) {
-                    Text("Stop tracking after \(hours(model.reminderSettings.autoStopHours)) of sleep or downtime")
-                }
-            } header: {
-                Text("Sleep and restarts")
-            } footer: {
-                Text("Shorter gaps keep the session running and ask whether you were working. Gaps under the idle time above are ignored.")
-                    .foregroundStyle(.secondary)
             }
 
             Section("Notifications") {

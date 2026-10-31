@@ -299,6 +299,24 @@ public final class SessionStore: @unchecked Sendable {
         }
     }
 
+    /// Removes `span` from one session: splits it when the span falls inside, trims it when the
+    /// span covers an edge. Does nothing when the session is gone, no longer overlaps the span,
+    /// or lies entirely inside it, since deleting it is too drastic for an answer about time away.
+    public func removeSpan(_ span: DateInterval, fromSession id: Int64, now: Date) throws {
+        guard var session = try session(id: id) else { return }
+        let end = session.end ?? now
+        guard span.start < end, span.end > session.start else { return }
+        if span.start > session.start, span.end < end {
+            try insertBreak(sessionID: id, from: span.start, to: span.end, now: now)
+        } else if span.start <= session.start, span.end < end {
+            session.start = span.end
+            try update(session, now: now)
+        } else if span.start > session.start, !session.isOpen {
+            session.end = span.start
+            try update(session, now: now)
+        }
+    }
+
     /// Reopens a stopped session so it runs until now again.
     @discardableResult
     public func reopen(id: Int64, now: Date) throws -> Session {

@@ -36,15 +36,17 @@ That builds Olek, puts it in Applications, and opens it. Run it again after pull
 
 **The balance** adds up worked minus expected for every day from the accounting start through yesterday. Today is still in progress, so it gets its own progress bar instead of greeting you with −8h every morning. The week and the month each show two numbers: how far ahead or behind you are through yesterday, and how much of the whole period is done.
 
-**Sleep, restarts, and crashes** never create hours out of nothing. While you track, Olek notes every minute that it is alive, and it decides by how long it was away:
+**Time away** never turns into hours out of nothing. While you track, Olek notes when you were last at the Mac: the last keyboard, mouse, or trackpad input while a screen was on. Closing the lid, a dark screen, sleep, a restart, a crash, and simply walking off all count as away, and the background wakes macOS does overnight with the screen off do not count as you coming back. What happens next depends on how long you were gone:
 
 <p align="center">
-  <img src="docs/images/time-away.svg" width="760" alt="Under 15 minutes away, tracking carries on. From 15 minutes to 4 hours, it carries on and asks whether you were working. After 4 hours it stops at the moment the Mac went away, and one click undoes that.">
+  <img src="docs/images/time-away.svg" width="760" alt="Under 15 minutes away, tracking carries on. From 15 minutes to 4 hours, it carries on and asks whether you were working: count it, or remove it. After 4 hours it stops at the moment you left, and one click undoes that.">
 </p>
+
+When you come back, one question in the menu bar covers every absence since you last answered. *Remove it* cuts the time away out of the session, and tracking carries on from your return.
 
 **Reminders** go by one number: how long ago the keyboard, mouse, or trackpad was last used. Olek never sees what you type or which apps you use.
 
-- Tracking, but nobody has touched the Mac for 15 minutes: *Still working?* Keep going, stop now, stop when you went idle, or be asked later. Being idle never stops tracking on its own, since meetings and reading are work too.
+- Tracking, but nobody has touched the Mac for 15 minutes while its screen stays on: *Still working?* Keep going, stop now, stop when you went idle, or be asked later. If you come back without answering, the notification gives way to the question above.
 - Using the Mac for 10 minutes without tracking: *Start tracking?*, from when the activity began or a time you pick. This only happens on workdays that have not reached their hours yet, and after you stop, Olek waits until you have been away before it asks again.
 
 All thresholds can be changed in Settings.

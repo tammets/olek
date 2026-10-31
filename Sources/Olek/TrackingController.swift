@@ -2,11 +2,18 @@ import AppKit
 import Observation
 import OlekCore
 
+/// One absence, tied to the session it was measured in so later edits elsewhere are never cut.
+struct AwayPeriod: Equatable {
+    let sessionID: Int64
+    let interval: DateInterval
+}
+
 enum RecoveryNotice: Equatable {
-    /// The Mac slept or Olek was not running for a while; the session kept going.
-    case askedAboutGap(sessionID: Int64, from: Date, to: Date)
-    /// The gap was long enough that the session was stopped at its start.
-    case autoStopped(session: Session, stoppedAt: Date, awayUntil: Date)
+    /// The person was away while tracking, once or several times; the time counts until answered.
+    case away([AwayPeriod])
+    /// The absence was long enough that the session was stopped when the person left. Absences
+    /// not answered before that come back as a question once this is dealt with.
+    case autoStopped(session: Session, stoppedAt: Date, earlier: [AwayPeriod])
 }
 
 enum SessionEdge {
@@ -52,7 +59,6 @@ final class TrackingController {
     @ObservationIgnored private var errorClearTask: Task<Void, Never>?
 
     private static let tickInterval: TimeInterval = 10
-    private static let heartbeatInterval: TimeInterval = 60
 
     init() {
         today = LocalDate(Date(), calendar: .autoupdatingCurrent)
@@ -64,7 +70,7 @@ final class TrackingController {
         }
         loadReminderSettings()
         reload()
-        checkLiveness()
+        checkLiveness(presence: ActivityMonitor.screensAwake() ? lastPresence(at: Date()) : nil)
         startTimer()
         observeSystem()
         notifications.onAction = { [weak self] action, text in self?.handle(action, typedText: text) }
@@ -87,7 +93,7 @@ final class TrackingController {
     func start(at time: Date) {
         perform {
             try $0.start(at: time, now: Date())
-            if case .autoStopped = notice { notice = nil }
+            if case .autoStopped = notice { notice = Self.notice(asking: pendingAway) }
         }
         if isWorking { trackingDidStart() }
     }
@@ -107,6 +113,8 @@ final class TrackingController {
         switch (action, reminder) {
         case (.continueWorking, _):
             clearReminder()
+            // Still working covers the time since the last input, so there is nothing to ask on return.
+            recordSighting(Date())
         case (.stopNow, _):
             clearReminder()
             if isWorking { stop() }
@@ -250,6 +258,13 @@ final class TrackingController {
 
     func deleteSession(_ session: Session) {
         perform { try $0.delete(id: session.id) }
+        // SQLite may hand the deleted ID to the next new session, which must not inherit these.
+        let remaining = pendingAway.filter { $0.sessionID != session.id }
+        switch notice {
+        case .away: notice = Self.notice(asking: remaining)
+        case let .autoStopped(stopped, at, _): notice = .autoStopped(session: stopped, stoppedAt: at, earlier: remaining)
+        case nil: break
+        }
     }
 
     func setDayOverride(_ override: DayOverride) {
@@ -272,26 +287,24 @@ final class TrackingController {
         }
     }
 
-    func keepGap() {
+    func countAway() {
         notice = nil
     }
 
-    func stopAtGapStart() {
-        guard case let .askedAboutGap(sessionID, from, _) = notice else { return }
+    /// Cuts the away time out of the sessions; a running session keeps running from the return.
+    func removeAway() {
+        guard case let .away(periods) = notice else { return }
         perform { store in
-            guard var session = try store.session(id: sessionID) else { throw SessionError.notFound }
-            if session.isOpen {
-                try store.stop(at: from, now: Date())
-            } else if let end = session.end, end > from, from > session.start {
-                session.end = from
-                try store.update(session, now: Date())
+            // Latest first: cutting one splits its session, and the earlier part keeps the ID.
+            for period in periods.sorted(by: { $0.interval.start > $1.interval.start }) {
+                try store.removeSpan(period.interval, fromSession: period.sessionID, now: Date())
             }
             notice = nil
         }
     }
 
     func undoAutoStop() {
-        guard case let .autoStopped(session, _, _) = notice else { return }
+        guard case let .autoStopped(session, _, earlier) = notice else { return }
         perform { store in
             if try store.session(id: session.id) != nil {
                 try store.reopen(id: session.id, now: Date())
@@ -299,19 +312,39 @@ final class TrackingController {
                 // The stop discarded a zero-length session; recreate it from its original start.
                 try store.start(at: session.start, now: Date())
             }
-            notice = nil
+            notice = Self.notice(asking: earlier)
         }
     }
 
     func dismissNotice() {
-        notice = nil
+        notice = Self.notice(asking: pendingAway)
     }
 
-    func recordHeartbeatNow() {
-        guard isWorking, let store else { return }
-        let date = Date()
-        try? store.recordHeartbeat(at: date)
-        openSession?.heartbeat = date
+    /// Stores the latest sighting right away, before the app quits or the screens go dark.
+    /// The screens may already be off here, so the idle time is read without that check.
+    func recordPresenceNow() {
+        let presence = lastPresence(at: Date())
+        // An absence that ended seconds ago is asked about before the sighting moves past it.
+        checkLiveness(presence: presence)
+        recordSighting(presence)
+    }
+
+    /// Absences still waiting for an answer, including those held back by an auto-stop notice.
+    private var pendingAway: [AwayPeriod] {
+        switch notice {
+        case let .away(periods): periods
+        case let .autoStopped(_, _, earlier): earlier
+        case nil: []
+        }
+    }
+
+    private static func notice(asking periods: [AwayPeriod]) -> RecoveryNotice? {
+        periods.isEmpty ? nil : .away(periods)
+    }
+
+    /// Checks right away instead of on the next tick, e.g. when the popover opens after an absence.
+    func refresh() {
+        tick()
     }
 
     // MARK: Internals
@@ -391,34 +424,60 @@ final class TrackingController {
             ledger = ledger?.updated(now: now)
             recomputeOverview()
         }
-        checkLiveness()
-        sampleActivity()
+        let screensAwake = ActivityMonitor.screensAwake()
+        checkLiveness(presence: screensAwake ? lastPresence(at: now) : nil)
+        if screensAwake { sampleActivity() }
     }
 
-    private func checkLiveness() {
+    /// - Parameter presence: when the person was last seen, or nil while every screen is dark.
+    private func checkLiveness(presence: Date?) {
         guard let store, let session = openSession else { return }
         let current = Date()
-        switch policy.evaluate(lastAlive: session.lastAlive, now: current) {
-        case .continueSilently:
-            if current.timeIntervalSince(session.lastAlive) >= Self.heartbeatInterval {
-                recordHeartbeatNow()
-            }
+        if session.lastAlive > current {
+            // The clock moved back. A sighting in the future would hide every absence until it passes.
+            recordSighting(current, allowingBackwards: true)
+            return
+        }
+        switch policy.evaluate(lastSeen: session.lastAlive, presence: presence, now: current) {
+        case .nothing:
+            break
+        case let .record(presence):
+            recordSighting(presence)
         case let .ask(gapStart, gapEnd):
-            // Several gaps in one session merge into one question reaching back to the first.
-            if case let .askedAboutGap(id, earlier, _) = notice, id == session.id {
-                notice = .askedAboutGap(sessionID: id, from: earlier, to: gapEnd)
-            } else {
-                notice = .askedAboutGap(sessionID: session.id, from: gapStart, to: gapEnd)
-            }
-            recordHeartbeatNow()
+            // Each absence stays its own period, so work done between them is never part of the question.
+            let period = AwayPeriod(sessionID: session.id, interval: DateInterval(start: gapStart, end: gapEnd))
+            notice = .away(pendingAway + [period])
+            recordSighting(gapEnd)
+            // The popover question supersedes "Still working?" and knows when the person came back.
+            if case .idleWhileTracking = reminder { clearReminder() }
         case let .autoStop(stopAt):
             do {
                 try store.stop(at: stopAt, now: current)
-                notice = .autoStopped(session: session, stoppedAt: stopAt, awayUntil: current)
+                notice = .autoStopped(session: session, stoppedAt: stopAt, earlier: pendingAway)
             } catch {
                 show(error)
             }
             reload()
+            if !isWorking { trackingDidStop() }
+        }
+    }
+
+    /// When the person was last seen, assuming a screen is on: the last input, or simply now
+    /// when the idle question is turned off and a lit screen alone counts as being there.
+    private func lastPresence(at now: Date) -> Date {
+        guard reminderSettings.idleReminderEnabled else { return now }
+        return now.addingTimeInterval(-max(0, ActivityMonitor.secondsSinceLastInput()))
+    }
+
+    /// Moves the open session's last sighting forward; only a clock correction moves it back.
+    private func recordSighting(_ date: Date, allowingBackwards: Bool = false) {
+        guard let store, let session = openSession, allowingBackwards || date > session.lastAlive else { return }
+        do {
+            try store.recordHeartbeat(at: date)
+            // The store keeps whole seconds; the copy here must compare the same way.
+            openSession?.heartbeat = Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
+        } catch {
+            show(error)
         }
     }
 
@@ -434,7 +493,17 @@ final class TrackingController {
     private func observeSystem() {
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append(workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.recordHeartbeatNow() }
+            // Closing the lid darkens the screens first and is handled below. A dark screen here can
+            // also be a background maintenance wake going back to sleep, whose idle time is unreliable.
+            MainActor.assumeIsolated {
+                if ActivityMonitor.screensAwake() { self?.recordPresenceNow() }
+            }
+        })
+        observers.append(workspace.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.recordPresenceNow() }
+        })
+        observers.append(workspace.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
         })
         observers.append(workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -446,8 +515,8 @@ final class TrackingController {
 
     private func updateActivityAssertion() {
         if isWorking, activity == nil {
-            // Without this, App Nap can stretch the heartbeat timer far beyond its interval
-            // and make an ordinary afternoon look like a liveness gap. The Mac may still sleep.
+            // Without this, App Nap can stretch the tick timer far beyond its interval
+            // and make an ordinary afternoon look like an absence. The Mac may still sleep.
             activity = ProcessInfo.processInfo.beginActivity(
                 options: .userInitiatedAllowingIdleSystemSleep,
                 reason: "Tracking working time"

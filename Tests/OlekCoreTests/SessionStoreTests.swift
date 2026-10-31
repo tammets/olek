@@ -315,6 +315,39 @@ import Testing
         }
     }
 
+    @Test func removingAwayTimeKeepsTheRunningSessionGoing() throws {
+        let open = try store.start(at: at("2026-10-26T08:00:00+02:00"), now: at("2026-10-26T08:00:00+02:00"))
+        let now = at("2026-10-26T15:00:00+02:00")
+        // Latest first, so the original session still holds the earlier span.
+        try store.removeSpan(DateInterval(start: at("2026-10-26T12:00:00+02:00"), end: at("2026-10-26T12:45:00+02:00")), fromSession: open.id, now: now)
+        try store.removeSpan(DateInterval(start: at("2026-10-26T10:00:00+02:00"), end: at("2026-10-26T10:30:00+02:00")), fromSession: open.id, now: now)
+        let sessions = try store.allSessions()
+        #expect(sessions.map(\.start) == [
+            at("2026-10-26T08:00:00+02:00"), at("2026-10-26T10:30:00+02:00"), at("2026-10-26T12:45:00+02:00"),
+        ])
+        #expect(sessions.map(\.end) == [at("2026-10-26T10:00:00+02:00"), at("2026-10-26T12:00:00+02:00"), nil])
+    }
+
+    @Test func removingAwayTimeTrimsEdgesAndTouchesOnlyItsSession() throws {
+        let now = at("2026-10-26T20:00:00+02:00")
+        let morning = try store.add(start: at("2026-10-26T09:00:00+02:00"), end: at("2026-10-26T12:00:00+02:00"), now: now)
+        let afternoon = try store.add(start: at("2026-10-26T14:00:00+02:00"), end: at("2026-10-26T17:00:00+02:00"), now: now)
+        try store.removeSpan(DateInterval(start: at("2026-10-26T11:30:00+02:00"), end: at("2026-10-26T14:30:00+02:00")), fromSession: morning.id, now: now)
+        #expect(try store.session(id: morning.id)?.end == at("2026-10-26T11:30:00+02:00"))
+        #expect(try store.session(id: afternoon.id) == afternoon)
+        try store.removeSpan(DateInterval(start: at("2026-10-26T13:00:00+02:00"), end: at("2026-10-26T14:30:00+02:00")), fromSession: afternoon.id, now: now)
+        #expect(try store.session(id: afternoon.id)?.start == at("2026-10-26T14:30:00+02:00"))
+    }
+
+    @Test func removingAwayTimeFromADeletedSessionLeavesOthersAlone() throws {
+        let now = at("2026-10-26T20:00:00+02:00")
+        let manual = try store.add(start: at("2026-10-26T09:00:00+02:00"), end: at("2026-10-26T12:00:00+02:00"), now: now)
+        let original = try store.add(start: at("2026-10-26T13:00:00+02:00"), end: at("2026-10-26T15:00:00+02:00"), now: now)
+        try store.delete(id: original.id)
+        try store.removeSpan(DateInterval(start: at("2026-10-26T10:00:00+02:00"), end: at("2026-10-26T10:30:00+02:00")), fromSession: original.id, now: now)
+        #expect(try store.allSessions() == [manual])
+    }
+
     @Test func stopRunningSessionAtAChosenPastTime() throws {
         try store.start(at: at("2026-10-26T08:00:00+02:00"), now: at("2026-10-26T08:00:00+02:00"))
         var session = try #require(try store.openSession())

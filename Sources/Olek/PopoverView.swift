@@ -11,8 +11,10 @@ struct PopoverView: View {
                 NoticeView(notice: notice, model: model)
             }
 
-            if let reminder = model.reminder {
-                ReminderPromptView(reminder: reminder, model: model)
+            // "Still working?" is answered by the away question once the person is back, so only
+            // the start suggestion has a place here.
+            if case let .activeWhileStopped(since)? = model.reminder {
+                StartPromptView(since: since, model: model)
             }
 
             Button(action: model.toggle) {
@@ -69,6 +71,7 @@ struct PopoverView: View {
         .background {
             if screenshotMode { Color(nsColor: .windowBackgroundColor) }
         }
+        .onAppear(perform: model.refresh)
     }
 }
 
@@ -295,7 +298,7 @@ enum DayDescription {
     }
 }
 
-// MARK: - Recovery notice
+// MARK: - Away notice
 
 private struct NoticeView: View {
     let notice: RecoveryNotice
@@ -304,15 +307,23 @@ private struct NoticeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             switch notice {
-            case let .askedAboutGap(_, from, to):
-                Text("Your Mac was asleep or Olek was not running from \(TimeFormat.hourMinute(from)) to \(TimeFormat.hourMinute(to)). Were you working?")
+            case let .away(periods):
+                Text(question(periods))
                     .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Button("Yes, keep it") { model.keepGap() }
-                    Button("Stop at \(TimeFormat.hourMinute(from))") { model.stopAtGapStart() }
+                if periods.count > 1 {
+                    Text(periods.map { range($0.interval) }.joined(separator: "\n"))
+                        .font(.callout)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
-            case let .autoStopped(_, stoppedAt, awayUntil):
-                Text("Stopped tracking at \(TimeFormat.hourMinute(stoppedAt)) because your Mac was away for \(DurationFormat.hoursMinutes(awayUntil.timeIntervalSince(stoppedAt))).")
+                HStack {
+                    Button("Yes, count it") { model.countAway() }
+                    Button("No, remove it") { model.removeAway() }
+                        .help("Removes the time away. Tracking carries on from when you came back.")
+                }
+            case let .autoStopped(_, stoppedAt, _):
+                let limit = DurationFormat.hoursMinutes(TimeInterval(model.reminderSettings.autoStopHours * 3600))
+                Text("You were away from your Mac for more than \(limit), so tracking stopped at \(TimeFormat.hourMinute(stoppedAt)), when you were last there.")
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button("Undo, I kept working") { model.undoAutoStop() }
@@ -324,46 +335,48 @@ private struct NoticeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.yellow.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
     }
+
+    private func question(_ periods: [AwayPeriod]) -> String {
+        if periods.count == 1, let period = periods.first?.interval {
+            let from = TimeFormat.hourMinute(period.start)
+            let to = TimeFormat.hourMinute(period.end)
+            return String(localized: "You were away from your Mac from \(from) to \(to). Was that work?")
+        }
+        let total = DurationFormat.hoursMinutes(periods.reduce(0) { $0 + $1.interval.duration })
+        return String(localized: "You were away from your Mac \(periods.count) times, \(total) in all. Was that work?")
+    }
+
+    private func range(_ period: DateInterval) -> String {
+        "\(TimeFormat.hourMinute(period.start))–\(TimeFormat.hourMinute(period.end))"
+    }
 }
 
-// MARK: - Reminder prompt
+// MARK: - Start prompt
 
 /// The same question as the notification, answerable here when notifications are off or missed.
-private struct ReminderPromptView: View {
-    let reminder: Reminder
+private struct StartPromptView: View {
+    let since: Date
     let model: TrackingController
 
     @State private var chosenStart = Date()
 
     var body: some View {
+        let time = TimeFormat.hourMinute(since)
         VStack(alignment: .leading, spacing: 8) {
-            switch reminder {
-            case let .idleWhileTracking(since):
-                let time = TimeFormat.hourMinute(since)
-                Text("You haven't used your Mac since \(time). Still working?")
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Button("Continue") { model.handle(.continueWorking) }
-                    Button("Stop at \(time)") { model.handle(.stopAtIdleStart) }
-                    Button("Later") { model.handle(.remindLater) }
-                }
-            case let .activeWhileStopped(since):
-                let time = TimeFormat.hourMinute(since)
-                Text("You've been using your Mac since \(time) while tracking is stopped.")
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Button("Start at \(time)") { model.handle(.startAtActiveStart) }
-                    Button("Not working") { model.handle(.notWorking) }
-                }
-                HStack {
-                    DatePicker("Start at", selection: $chosenStart, displayedComponents: .hourAndMinute)
-                        .environment(\.locale, Locale(identifier: "en_GB"))
-                        .fixedSize()
-                    Button("Start") { model.start(at: chosenStart) }
-                        .accessibilityLabel("Start at chosen time")
-                }
-                .onAppear { chosenStart = since }
+            Text("You've been using your Mac since \(time) while tracking is stopped.")
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Start at \(time)") { model.handle(.startAtActiveStart) }
+                Button("Not working") { model.handle(.notWorking) }
             }
+            HStack {
+                DatePicker("Start at", selection: $chosenStart, displayedComponents: .hourAndMinute)
+                    .environment(\.locale, Locale(identifier: "en_GB"))
+                    .fixedSize()
+                Button("Start") { model.start(at: chosenStart) }
+                    .accessibilityLabel("Start at chosen time")
+            }
+            .onAppear { chosenStart = since }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)

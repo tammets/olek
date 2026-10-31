@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Recording the quit time keeps a quick relaunch from looking like a liveness gap.
-        controller.recordHeartbeatNow()
+        // Recording the quit time keeps a quick relaunch from looking like an absence.
+        controller.recordPresenceNow()
     }
 }

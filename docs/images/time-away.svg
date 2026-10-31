@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="168" viewBox="0 0 760 168" role="img" aria-labelledby="t d">
   <title id="t">What Olek does after time away while tracking</title>
-  <desc id="d">Under 15 minutes away: tracking continues. 15 minutes to 4 hours: tracking continues and Olek asks whether you were working. 4 hours or more: tracking stops at the moment the Mac went away, with an undo.</desc>
+  <desc id="d">Under 15 minutes away: tracking continues. 15 minutes to 4 hours: tracking continues and Olek asks whether you were working. 4 hours or more: tracking stops at the moment you left, with an undo.</desc>
   <style>
     .caption { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #57606a; }
     .tick { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #57606a; }
@@ -19,7 +19,7 @@
     }
   </style>
 
-  <text class="caption" x="20" y="22">Mac asleep, Olek quit or crashed, while a session is running</text>
+  <text class="caption" x="20" y="22">Away from your Mac while a session is running: lid closed, screen dark, or no input</text>
 
   <g class="line" stroke-width="1">
     <line x1="20" y1="40" x2="20" y2="112"/>
@@ -41,9 +41,9 @@
   <text class="label b-text" x="285" y="85" text-anchor="middle">Carries on, asks you</text>
   <text class="label c-text" x="580" y="85" text-anchor="middle">Stops when you left</text>
 
-  <text class="note" x="85" y="132" text-anchor="middle">a restart or a nap</text>
+  <text class="note" x="85" y="132" text-anchor="middle">a coffee or a restart</text>
   <text class="note" x="285" y="132" text-anchor="middle">“Were you working?”</text>
-  <text class="note" x="285" y="150" text-anchor="middle">keep it, or stop at the gap</text>
+  <text class="note" x="285" y="150" text-anchor="middle">count it, or remove it</text>
   <text class="note" x="580" y="132" text-anchor="middle">nothing is invented overnight</text>
   <text class="note" x="580" y="150" text-anchor="middle">one click undoes it</text>
 </svg>

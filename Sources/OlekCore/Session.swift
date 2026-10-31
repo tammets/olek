@@ -5,7 +5,7 @@ public struct Session: Identifiable, Hashable, Sendable {
     public var start: Date
     /// `nil` while the session is running.
     public var end: Date?
-    /// Last moment the app confirmed it was alive while this session was open.
+    /// Last moment the person was seen at the Mac while this session was open (see `RecoveryPolicy`).
     public var heartbeat: Date?
     public var note: String?
 
@@ -19,7 +19,7 @@ public struct Session: Identifiable, Hashable, Sendable {
 
     public var isOpen: Bool { end == nil }
 
-    /// Latest point in time this open session is known to have been tracked.
+    /// Latest point in time the person is known to have been there for this open session.
     public var lastAlive: Date { max(heartbeat ?? start, start) }
 }
 
