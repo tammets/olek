@@ -33,10 +33,12 @@ struct PopoverView: View {
 
             // Errors come from Start/Stop or the adjust buttons, so they sit right below those.
             if let error = model.errorMessage {
-                Text(error)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
+                Label {
+                    Text(error).fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                }
+                .font(.callout)
             }
 
             if let overview = model.overview {
@@ -188,7 +190,10 @@ private struct TodaySection: View {
                     .tint(completion >= 1 ? .green : .accentColor)
             }
             HStack {
-                Text(DayDescription.text(for: plan))
+                // Nothing is expected, so all of today's time goes onto the balance tomorrow.
+                Text(summary.expected == 0 && plan.reason != .beforeAccounting
+                     ? String(localized: "\(DayDescription.text(for: plan)) · all time is extra")
+                     : DayDescription.text(for: plan))
                     .foregroundStyle(.secondary)
                 Spacer()
                 if let completion = summary.completion {
@@ -242,13 +247,32 @@ private struct ToDateLabel: View {
             } else if abs(difference) < 60 {
                 Text("On schedule").foregroundStyle(.secondary)
             } else if difference > 0 {
-                Text("\(DurationFormat.signed(difference)) ahead").foregroundStyle(.green)
+                TrendText(label: Text("\(DurationFormat.signed(difference)) ahead"), up: true)
             } else {
-                Text("\(DurationFormat.signed(difference)) behind").foregroundStyle(.orange)
+                TrendText(label: Text("\(DurationFormat.signed(difference)) behind"), up: false)
             }
         }
         .monospacedDigit()
         .help("Compared with expected hours through yesterday")
+    }
+}
+
+/// Coloured text is unreadable on the translucent popover over a dark wallpaper, so the words
+/// keep the primary colour and a coloured arrow carries the good-or-bad signal.
+private struct TrendText: View {
+    let label: Text
+    /// `nil` when the value is close enough to even that no direction is shown.
+    let up: Bool?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let up {
+                Image(systemName: up ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                    .foregroundStyle(up ? Color.green : Color.orange)
+                    .accessibilityHidden(true)
+            }
+            label
+        }
     }
 }
 
@@ -260,10 +284,12 @@ private struct BalanceSection: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Balance").font(.headline)
                 Spacer()
-                Text(DurationFormat.signed(overview.balance))
-                    .font(.headline)
-                    .monospacedDigit()
-                    .foregroundStyle(overview.balance < -59 ? .orange : .primary)
+                TrendText(
+                    label: Text(DurationFormat.signed(overview.balance)),
+                    up: abs(overview.balance) < 60 ? nil : overview.balance > 0
+                )
+                .font(.headline)
+                .monospacedDigit()
             }
             Text("Through yesterday, since \(DateFormat.dayMonthYear(overview.accountingStart))")
                 .font(.caption)
