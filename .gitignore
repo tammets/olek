@@ -23,3 +23,5 @@ DerivedData/
 # Local planning notes stay out of the repo; only README is published
 *.md
 !README.md
+# The review rules Codex reads on GitHub.
+!/AGENTS.md
