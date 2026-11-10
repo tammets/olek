@@ -48,6 +48,9 @@ final class TrackingController {
     @ObservationIgnored private let store: SessionStore?
     @ObservationIgnored private var policy = RecoveryPolicy()
     @ObservationIgnored private var engine = ReminderEngine(settings: ReminderSettings())
+    @ObservationIgnored private var inputTimeline = InputTimeline()
+    /// The last input as of the latest `lastPresence(at:)`.
+    @ObservationIgnored private var lastInput = Date()
     @ObservationIgnored let notifications = NotificationService()
     @ObservationIgnored private let calendar = Calendar.autoupdatingCurrent
     @ObservationIgnored private var today: LocalDate
@@ -219,7 +222,7 @@ final class TrackingController {
         let workExpected = overview.map { $0.todayWorked < $0.todayPlan.expected } ?? false
         guard let fired = engine.sample(
             now: now,
-            idleSeconds: ActivityMonitor.secondsSinceLastInput(),
+            idleSeconds: max(0, now.timeIntervalSince(lastInput)),
             isTracking: isWorking,
             workExpected: workExpected
         ) else { return }
@@ -326,7 +329,7 @@ final class TrackingController {
         let presence = lastPresence(at: Date())
         // An absence that ended seconds ago is asked about before the sighting moves past it.
         checkLiveness(presence: presence)
-        recordSighting(presence)
+        if let presence { recordSighting(presence) }
     }
 
     /// Absences still waiting for an answer, including those held back by an auto-stop notice.
@@ -425,11 +428,15 @@ final class TrackingController {
             recomputeOverview()
         }
         let screensAwake = ActivityMonitor.screensAwake()
-        checkLiveness(presence: screensAwake ? lastPresence(at: now) : nil)
-        if screensAwake { sampleActivity() }
+        let presence = lastPresence(at: now)
+        checkLiveness(presence: screensAwake ? presence : nil)
+        // Until something is touched after a sleep, nothing is known about the person: asking
+        // "Still working?" then would post a notification from a background wake.
+        if screensAwake, inputTimeline.inputSinceWake { sampleActivity() }
     }
 
-    /// - Parameter presence: when the person was last seen, or nil while every screen is dark.
+    /// - Parameter presence: when the person was last seen, or nil while every screen is dark
+    ///   or nothing has been touched since the Mac woke.
     private func checkLiveness(presence: Date?) {
         guard let store, let session = openSession else { return }
         let current = Date()
@@ -463,10 +470,19 @@ final class TrackingController {
     }
 
     /// When the person was last seen, assuming a screen is on: the last input, or simply now
-    /// when the idle question is turned off and a lit screen alone counts as being there.
-    private func lastPresence(at now: Date) -> Date {
-        guard reminderSettings.idleReminderEnabled else { return now }
-        return now.addingTimeInterval(-max(0, ActivityMonitor.secondsSinceLastInput()))
+    /// when the idle question is turned off and a lit screen alone counts as being there. Even
+    /// then nobody is there until something is touched after a sleep: background wakes can
+    /// report a lit screen.
+    private func lastPresence(at now: Date) -> Date? {
+        let clocks = ActivityMonitor.clocks()
+        lastInput = inputTimeline.sample(
+            now: now,
+            uptime: clocks.uptime,
+            sleptTotal: clocks.sleptTotal,
+            idleSeconds: ActivityMonitor.secondsSinceLastInput()
+        )
+        guard reminderSettings.idleReminderEnabled else { return inputTimeline.inputSinceWake ? now : nil }
+        return lastInput
     }
 
     /// Moves the open session's last sighting forward; only a clock correction moves it back.
@@ -494,9 +510,11 @@ final class TrackingController {
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append(workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             // Closing the lid darkens the screens first and is handled below. A dark screen here can
-            // also be a background maintenance wake going back to sleep, whose idle time is unreliable.
+            // also be a background maintenance wake going back to sleep, which is nobody's presence.
+            // The input is sampled either way: the timeline needs a sample right before each sleep.
             MainActor.assumeIsolated {
-                if ActivityMonitor.screensAwake() { self?.recordPresenceNow() }
+                guard let self else { return }
+                if ActivityMonitor.screensAwake() { self.recordPresenceNow() } else { _ = self.lastPresence(at: Date()) }
             }
         })
         observers.append(workspace.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in

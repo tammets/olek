@@ -4,8 +4,8 @@ import Foundation
 ///
 /// "Seen" means keyboard, mouse, or trackpad input while a screen is on. Sleep, a closed lid,
 /// a dark screen, a crash, or Olek not running all leave the last sighting where it was, so they
-/// count as away exactly like walking off with the screen on. Background maintenance wakes keep
-/// the screens dark and so cannot make an absence look shorter than it was.
+/// count as away exactly like walking off with the screen on. Background maintenance wakes bring
+/// no input, so they cannot make an absence look shorter than it was; `InputTimeline` sees to that.
 public struct RecoveryPolicy: Sendable {
     /// Absences shorter than this are ignored.
     public var askThreshold: TimeInterval
@@ -30,7 +30,8 @@ public struct RecoveryPolicy: Sendable {
 
     /// - Parameters:
     ///   - lastSeen: the stored last sighting of the open session.
-    ///   - presence: the latest input while a screen is on, or `nil` when the screens are dark.
+    ///   - presence: the latest input while a screen is on, or `nil` when the screens are dark
+    ///     or nothing has been touched since the Mac woke.
     public func evaluate(lastSeen: Date, presence: Date?, now: Date) -> Decision {
         // Sightings are stored in whole seconds, so anything within a second of it is the same one.
         guard let presence, presence.timeIntervalSince(lastSeen) >= 1 else {

@@ -36,7 +36,7 @@ That builds Olek, puts it in Applications, and opens it. Run it again after pull
 
 **The balance** adds up worked minus expected for every day from the accounting start through yesterday. Today is still in progress, so it gets its own progress bar instead of greeting you with −8h every morning. The week and the month each show two numbers: how far ahead or behind you are through yesterday, and how much of the whole period is done.
 
-**Time away** never turns into hours out of nothing. While you track, Olek notes when you were last at the Mac: the last keyboard, mouse, or trackpad input while a screen was on. Closing the lid, a dark screen, sleep, a restart, a crash, and simply walking off all count as away, and the background wakes macOS does overnight with the screen off do not count as you coming back. What happens next depends on how long you were gone:
+**Time away** never turns into hours out of nothing. While you track, Olek notes when you were last at the Mac: the last keyboard, mouse, or trackpad input while a screen was on. Closing the lid, a dark screen, sleep, a restart, a crash, and simply walking off all count as away, and the background wakes macOS does overnight do not count as you coming back: after a sleep, only new input does. What happens next depends on how long you were gone:
 
 <p align="center">
   <img src="docs/images/time-away.svg" width="760" alt="Under 15 minutes away, tracking carries on. From 15 minutes to 4 hours, it carries on and asks whether you were working: count it, or remove it. After 4 hours it stops at the moment you left, and one click undoes that.">
